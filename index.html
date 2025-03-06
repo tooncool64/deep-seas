@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deep Seas: An Incremental Fishing Adventure</title>
+    <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+<div id="game-container">
+    <div id="header">
+        <h1>Deep Seas</h1>
+        <div id="currency-display">
+            <span id="money">$0.00</span>
+        </div>
+    </div>
+
+    <div id="game-area">
+        <div id="fishing-area">
+            <div id="depth-meter">
+                <div id="current-depth">0m</div>
+            </div>
+            <div id="fishing-animation"></div>
+            <button id="cast-line">Cast Line</button>
+        </div>
+
+        <div id="inventory">
+            <h2>Inventory</h2>
+            <div id="inventory-slots"></div>
+        </div>
+
+        <div id="shop">
+            <h2>Upgrades</h2>
+            <div id="upgrade-list"></div>
+        </div>
+    </div>
+
+    <div id="footer">
+        <button id="save-game">Save Game</button>
+    </div>
+</div>
+
+<script>
+    // Add debugging console output
+    console.log("Loading Deep Seas game");
+    window.addEventListener('error', function(e) {
+        console.error('Global error:', e.error);
+    });
+</script>
+<script src="dist/renderer.js"></script>
+</body>
+</html>
