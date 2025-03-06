@@ -54,7 +54,10 @@ export enum UpgradeType {
     LINE_STRENGTH = 'line_strength',
     DEPTH_ACCESS = 'depth_access',
     TANK_CAPACITY = 'tank_capacity',
-    CATCH_SPEED = 'catch_speed'
+    CATCH_SPEED = 'catch_speed',
+   BREEDING_EFFICIENCY = 'breeding_efficiency',
+    BREEDING_TANKS = 'breeding_tanks',
+    PRESSURE_RESISTANCE = 'pressure_resistance',
 }
 
 // Initial game values
@@ -71,6 +74,7 @@ export const INITIAL_GAME_STATE = {
 export const TIME_CONSTANTS = {
     BASE_CATCH_TIME: 3000, // Base time to catch a fish
     SAVE_INTERVAL: 60000,  // Auto-save every minute
+    BASE_BREEDING_TIME: 300000, // 5 minutes for basic breeding time
 };
 
 // Surface fish species
@@ -163,5 +167,105 @@ export const INITIAL_UPGRADES = [
         cost: 85,
         value: 0.1,  // 10% reduction
         maxLevel: 5
+    },
+    {
+        id: 'basic_breeding_tank',
+        name: 'Basic Breeding Tank',
+        description: 'Adds a tank for breeding fish',
+        type: UpgradeType.BREEDING_TANKS,
+        cost: 200,
+        value: 1,
+        maxLevel: 5
+    },
+    {
+        id: 'breeding_handbook',
+        name: 'Breeding Handbook',
+        description: 'Increases breeding efficiency by 10%',
+        type: UpgradeType.BREEDING_EFFICIENCY,
+        cost: 150,
+        value: 0.1,
+        maxLevel: 5
+    },
+    {
+        id: 'basic_pressure_gear',
+        name: 'Basic Pressure Gear',
+        description: 'Allows fishing in deeper water with 20% pressure resistance',
+        type: UpgradeType.PRESSURE_RESISTANCE,
+        cost: 300,
+        value: 0.2,
+        maxLevel: 1
+    }
+];
+
+export const INITIAL_ACHIEVEMENTS = [
+    {
+        id: 'first_catch',
+        name: 'First Catch',
+        description: 'Catch your first fish',
+        requirement: { statName: 'totalFishCaught', value: 1 },
+        reward: { money: 10 }
+    },
+    {
+        id: 'catch_10',
+        name: 'Novice Angler',
+        description: 'Catch 10 fish',
+        requirement: { statName: 'totalFishCaught', value: 10 },
+        reward: { money: 25 }
+    },
+    {
+        id: 'catch_50',
+        name: 'Skilled Angler',
+        description: 'Catch 50 fish',
+        requirement: { statName: 'totalFishCaught', value: 50 },
+        reward: { money: 100 }
+    },
+    {
+        id: 'catch_rare',
+        name: 'Rare Find',
+        description: 'Catch your first rare fish',
+        requirement: { statName: 'rareFishCaught', value: 1 },
+        reward: { money: 50 }
+    },
+    {
+        id: 'catch_legendary',
+        name: 'Legend of the Deep',
+        description: 'Catch your first legendary fish',
+        requirement: { statName: 'legendaryFishCaught', value: 1 },
+        reward: { money: 200 }
+    },
+    {
+        id: 'first_breed',
+        name: 'Fish Breeder',
+        description: 'Successfully breed fish for the first time',
+        requirement: { statName: 'successfulBreeds', value: 1 },
+        reward: { money: 100 }
+    },
+    {
+        id: 'first_mutation',
+        name: 'Genetic Pioneer',
+        description: 'Obtain your first mutation through breeding',
+        requirement: { statName: 'mutationsObtained', value: 1 },
+        reward: { money: 150 }
+    },
+    {
+        id: 'deep_diver',
+        name: 'Deep Diver',
+        description: 'Reach a depth of 100m',
+        requirement: { statName: 'maxDepthReached', value: 100 },
+        reward: { money: 200 }
+    },
+    {
+        id: 'money_maker',
+        name: 'Money Maker',
+        description: 'Earn a total of 1000 money',
+        requirement: { statName: 'totalMoneyEarned', value: 1000 },
+        reward: { money: 100 }
+    },
+    {
+        id: 'activate_ability',
+        name: 'Power User',
+        description: 'Activate a fish ability for the first time',
+        requirement: { statName: 'abilitiesActivated', value: 1 },
+        reward: { money: 50 }
     }
 ];

@@ -39,14 +39,14 @@ export class SurfaceLayer implements Layer {
     /**
      * Generate a fish at the given depth
      */
-    generateFish(depth: number, fishingPower: number): Fish | null {
+    generateFish(depth: number, fishingPower: number, rarityBoost: number = 0): Fish | null {
         // Make sure depth is within this layer's range
         if (!this.containsDepth(depth)) {
             return null;
         }
 
         // Use fish manager to generate a fish at this depth
-        return this.fishManager.generateFish(depth, fishingPower);
+        return this.fishManager.generateFish(depth, fishingPower, rarityBoost);
     }
 
     /**

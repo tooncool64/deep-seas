@@ -19,7 +19,7 @@ export interface Layer {
     containsDepth(depth: number): boolean;
 
     // Generate a fish at the given depth
-    generateFish(depth: number, fishingPower: number): any;
+    generateFish(depth: number, fishingPower: number, rarityBoost?: number): any;
 
     // Calculate catch time based on depth and speed bonus
     calculateCatchTime(depth: number, catchSpeedBonus: number): number;

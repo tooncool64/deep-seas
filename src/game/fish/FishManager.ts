@@ -58,19 +58,19 @@ export class FishManager {
     /**
      * Generate a random rarity based on rarity chances
      */
-    generateRarity(fishingPower: number = 1): FishRarity {
-        // Increase chances of better rarities based on fishing power
-        // For now, a simple linear boost to chances
-        const rarityBoost = (fishingPower - 1) * 0.02; // 2% per fishing power level
+    generateRarity(fishingPower: number = 1, rarityBoost: number = 0): FishRarity {
+        // Increase chances of better rarities based on fishing power and rarity boost
+        const fishingPowerBoost = (fishingPower - 1) * 0.02; // 2% per fishing power level
+        const totalBoost = fishingPowerBoost + rarityBoost;
 
         // Calculate rarity
-        if (chance(RARITY_CHANCES[FishRarity.MYTHIC] + rarityBoost)) {
+        if (chance(RARITY_CHANCES[FishRarity.MYTHIC] + totalBoost)) {
             return FishRarity.MYTHIC;
-        } else if (chance(RARITY_CHANCES[FishRarity.LEGENDARY] + rarityBoost)) {
+        } else if (chance(RARITY_CHANCES[FishRarity.LEGENDARY] + totalBoost)) {
             return FishRarity.LEGENDARY;
-        } else if (chance(RARITY_CHANCES[FishRarity.RARE] + rarityBoost)) {
+        } else if (chance(RARITY_CHANCES[FishRarity.RARE] + totalBoost)) {
             return FishRarity.RARE;
-        } else if (chance(RARITY_CHANCES[FishRarity.UNCOMMON] + rarityBoost)) {
+        } else if (chance(RARITY_CHANCES[FishRarity.UNCOMMON] + totalBoost)) {
             return FishRarity.UNCOMMON;
         } else {
             return FishRarity.COMMON;
@@ -80,7 +80,7 @@ export class FishManager {
     /**
      * Generate a random fish at the given depth
      */
-    generateFish(depth: number, fishingPower: number = 1): Fish | null {
+    generateFish(depth: number, fishingPower: number = 1, rarityBoost: number = 0): Fish | null {
         // Get all fish species available at this depth
         const availableSpecies = this.findAvailableSpeciesAtDepth(depth);
 
@@ -91,8 +91,8 @@ export class FishManager {
         // Select a random species
         const species = randomElement(availableSpecies);
 
-        // Generate rarity
-        const rarity = this.generateRarity(fishingPower);
+        // Generate rarity with boost
+        const rarity = this.generateRarity(fishingPower, rarityBoost);
 
         // Create and return the fish
         return new Fish(species, rarity, depth);
