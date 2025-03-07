@@ -34,6 +34,14 @@ export abstract class FishAbility {
     }
 
     /**
+     * Get the ability type name (for serialization)
+     * Should be overridden by subclasses
+     */
+    getTypeName(): string {
+        return 'FishAbility';
+    }
+
+    /**
      * Activate the ability
      * @returns true if activation was successful
      */
@@ -152,6 +160,11 @@ export abstract class FishAbility {
     serialize(): object {
         return {
             id: this.id,
+            type: this.getTypeName(), // Include type name for reconstruction
+            name: this.name,
+            description: this.description,
+            isPassive: this.isPassive,
+            cooldownTime: this.cooldownTime,
             isActive: this.isActive,
             cooldownRemaining: this.cooldownRemaining,
             lastActivationTime: this.lastActivationTime

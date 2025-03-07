@@ -448,6 +448,57 @@ export class AbilityManager {
     }
 
     /**
+     * Create ability from saved data
+     */
+    private createAbilityFromSavedData(abilityId: string, data: any): FishAbility | null {
+        if (!data || !data.type) {
+            console.error('Missing ability type for deserialization:', data);
+            return null;
+        }
+
+        // Create the appropriate ability type based on the saved type
+        switch (data.type) {
+            case 'PassiveIncomeAbility':
+                return new PassiveIncomeAbility(
+                    abilityId,
+                    data.name,
+                    data.description,
+                    data.incomeRate || 0
+                );
+            case 'FishingBoostAbility':
+                return new FishingBoostAbility(
+                    abilityId,
+                    data.name,
+                    data.description,
+                    data.boostAmount || 0,
+                    data.isPassive || false,
+                    data.duration || 0
+                );
+            case 'CatchRateAbility':
+                return new CatchRateAbility(
+                    abilityId,
+                    data.name,
+                    data.description,
+                    data.boostAmount || 0,
+                    data.isPassive || false,
+                    data.duration || 0
+                );
+            case 'RarityBoostAbility':
+                return new RarityBoostAbility(
+                    abilityId,
+                    data.name,
+                    data.description,
+                    data.boostAmount || 0,
+                    data.isPassive || false,
+                    data.duration || 0
+                );
+            default:
+                console.error('Unknown ability type for deserialization:', data.type);
+                return null;
+        }
+    }
+
+    /**
      * Serialize ability manager for saving
      */
     serialize(): object {
@@ -483,15 +534,35 @@ export class AbilityManager {
             }
         }
 
+        // Restore fish in tanks status
         if (data.fishInTanks) {
             for (const [fishId, inTank] of Object.entries(data.fishInTanks)) {
                 this.fishInTanks.set(fishId, inTank === true);
             }
         }
 
-        // Note: This is a simplified implementation. In a real scenario,
-        // you would need to reconstruct the actual ability objects with their proper types.
-        // This would typically involve storing the ability type in the serialized data
-        // and using a factory pattern to recreate the correct ability subclass.
+        // Restore abilities
+        if (data.abilities) {
+            for (const [abilityId, abilityData] of Object.entries(data.abilities)) {
+                const ability = this.createAbilityFromSavedData(abilityId, abilityData);
+
+                if (ability) {
+                    this.abilities.set(abilityId, ability);
+                    ability.deserialize(abilityData);
+                }
+            }
+        }
+
+        // Restore active buffs
+        if (data.activeBuffs) {
+            for (const [buffName, value] of Object.entries(data.activeBuffs)) {
+                if (typeof value === 'number') {
+                    this.activeBuffs.set(buffName, value);
+                }
+            }
+        }
+
+        // Update buffs based on active abilities
+        this.updateBuffsFromAbilities();
     }
 }

@@ -24,6 +24,13 @@ export class CatchRateAbility extends FishAbility {
     }
 
     /**
+     * Get the ability type name for serialization
+     */
+    getTypeName(): string {
+        return 'CatchRateAbility';
+    }
+
+    /**
      * Get ability duration
      */
     getDuration(): number {
@@ -53,5 +60,15 @@ export class CatchRateAbility extends FishAbility {
             boostAmount: this.boostAmount,
             duration: this.duration
         };
+    }
+
+    /**
+     * Deserialize from saved data
+     */
+    deserialize(data: any): void {
+        super.deserialize(data);
+
+        // No additional deserialization needed for this class
+        // since duration is immutable after construction
     }
 }

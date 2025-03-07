@@ -26,6 +26,13 @@ export class PassiveIncomeAbility extends FishAbility {
     }
 
     /**
+     * Get the ability type name for serialization
+     */
+    getTypeName(): string {
+        return 'PassiveIncomeAbility';
+    }
+
+    /**
      * Set callback for income generation
      */
     setIncomeCallback(callback: (amount: number) => void): void {

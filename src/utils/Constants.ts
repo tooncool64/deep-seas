@@ -408,20 +408,11 @@ export const LAYER_REQUIREMENTS: LayerRequirementMap = {
             id: 'fish_species',
             description: 'Catch at least 20 different fish species',
             checkFunction: (gameState: any) => {
-                // Count unique species caught
-                const uniqueSpecies = new Set<string>();
-                for (const fish of gameState.inventory.getAllFish()) {
-                    uniqueSpecies.add(fish.speciesId);
+                // Use the StatsTracker to check for unique species caught
+                if (gameState.statsTracker) {
+                    return gameState.statsTracker.getUniqueSpeciesCount() >= 20;
                 }
-
-                // Also check fish in tanks
-                if (gameState.tankManager) {
-                    for (const fishInTank of gameState.tankManager.getAllFishInTanks()) {
-                        uniqueSpecies.add(fishInTank.speciesId);
-                    }
-                }
-
-                return uniqueSpecies.size >= 5; // Lowered for testing, would be 20 in production
+                return false;
             }
         },
         {

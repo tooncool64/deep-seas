@@ -424,7 +424,7 @@ export class Game {
         );
 
         // Schedule regular updates
-        setInterval(() => this.updateLayerRequirements(), 5000);
+        setInterval(() => this.updateLayerRequirements(), 2000);
     }
 
     /**
@@ -437,7 +437,8 @@ export class Game {
                 inventory: this.inventory,
                 upgradeManager: this.upgradeManager,
                 fishingPower: this.fishingService.getFishingPower?.() ?? 1,
-                tankManager: this.tankManager
+                tankManager: this.tankManager,
+                statsTracker: this.statsTracker // Add statsTracker to the gameState
             }
         );
     }
@@ -452,7 +453,8 @@ export class Game {
                 inventory: this.inventory,
                 upgradeManager: this.upgradeManager,
                 fishingPower: this.fishingService.getFishingPower?.() ?? 1,
-                tankManager: this.tankManager
+                tankManager: this.tankManager,
+                statsTracker: this.statsTracker // Add statsTracker to the gameState
             }
         );
 
@@ -559,12 +561,27 @@ export class Game {
      * Start a breeding attempt
      */
     private startBreeding(fish1: Fish, fish2: Fish): boolean {
+        console.log(`Attempting to start breeding between ${fish1.displayName} and ${fish2.displayName}`);
+
+        // First check if these fish are actually in the inventory
+        if (!this.inventory.getFish(fish1.id) || !this.inventory.getFish(fish2.id)) {
+            console.error("One or both fish are no longer in inventory!");
+            this.ui.showNotification('One or both selected fish are no longer available.', 'error');
+            return false;
+        }
+
         const success = this.breedingService.startBreeding(fish1, fish2);
 
         if (success) {
+            console.log(`Successfully started breeding between ${fish1.displayName} and ${fish2.displayName}`);
             this.ui.showNotification(`Started breeding ${fish1.displayName} with ${fish2.displayName}`, 'success');
-            this.updateBreedingUI();
+
+            // Important: Force a complete refresh of the breeding UI to show the correct state
+            setTimeout(() => {
+                this.updateBreedingUI();
+            }, 50);
         } else {
+            console.error("Failed to start breeding");
             this.ui.showNotification('Unable to start breeding. Check compatibility or tank availability.', 'error');
         }
 
@@ -796,12 +813,39 @@ export class Game {
      * Update breeding UI
      */
     private updateBreedingUI(): void {
-        // Update breeding tanks
-        this.breedingUI.updateBreedingTanks(this.breedingManager.getAllTanks());
+        console.log("Updating breeding UI");
 
-        // Update selection panel with fish available for breeding
+        // Get fresh tank data
+        const tanks = this.breedingManager.getAllTanks();
+
+        // Log tanks for debugging
+        for (const tank of tanks) {
+            if (tank.isOccupied() && tank.breedingPair) {
+                console.log(`Tank ${tank.id}: ${tank.breedingPair.fish1.displayName} + ${tank.breedingPair.fish2.displayName}`);
+            } else {
+                console.log(`Tank ${tank.id}: empty`);
+            }
+        }
+
+        // Update breeding tanks UI
+        this.breedingUI.updateBreedingTanks(tanks);
+
+        // Update selection panel with available fish
+        // Get the list of fish IDs that are already breeding and should be disabled
+        const breedingFishIds = new Set<string>();
+        for (const tank of tanks) {
+            if (tank.breedingPair) {
+                breedingFishIds.add(tank.breedingPair.fish1.id);
+                breedingFishIds.add(tank.breedingPair.fish2.id);
+            }
+        }
+
+        // Update the inventory display to reflect breeding fish
+        this.updateUI();
+
+        // Update the selection panel
         this.breedingUI.updateSelectionPanel(
-            this.inventory.getAllFish(),
+            this.inventory.getAllFish().filter(fish => !breedingFishIds.has(fish.id)),
             (fish1, fish2) => this.breedingManager.checkCompatibility(fish1, fish2)
         );
     }

@@ -107,7 +107,13 @@ export class BreedingUI {
             const tankElement = this.createTankElement(tank);
             this.breedingTanksContainer.appendChild(tankElement);
         }
+
+        // After updating tanks, reset selected fish to prevent confusion
+        // about which fish are selected vs. which are actually in tanks
+        this.selectedFish = null;
+        this.updateSelectedFishDisplay();
     }
+
 
     /**
      * Create a tank display element
@@ -123,14 +129,19 @@ export class BreedingUI {
         title.textContent = `Breeding Tank`;
         tankElement.appendChild(title);
 
-        if (tank.isOccupied()) {
+        if (tank.isOccupied() && tank.breedingPair) {
             // Tank has breeding pair
             const pairInfo = tank.getPairInfo();
 
             if (pairInfo) {
-                // Add fish info
+                // Add fish info - ensure we're using the actual fish IDs from the tank
                 const fishInfo = document.createElement('div');
                 fishInfo.className = 'breeding-fish-info';
+
+                // Store fish IDs as data attributes for easier debugging
+                fishInfo.dataset.fish1Id = tank.breedingPair.fish1.id;
+                fishInfo.dataset.fish2Id = tank.breedingPair.fish2.id;
+
                 fishInfo.innerHTML = `
                 <div>${pairInfo.fish1Name}</div>
                 <div>+</div>
@@ -270,11 +281,25 @@ export class BreedingUI {
         } else if (this.selectedFish) {
             // Already have one fish selected, try to breed with second fish
             if (this.startBreedingCallback) {
-                const success = this.startBreedingCallback(this.selectedFish, fish);
+                // Store references to both fish before potentially removing them from inventory
+                const firstFish = this.selectedFish;
+                const secondFish = fish;
+
+                const success = this.startBreedingCallback(firstFish, secondFish);
 
                 if (success) {
                     // Reset selection after successful breeding
                     this.selectedFish = null;
+
+                    // Update the selection display
+                    this.updateSelectedFishDisplay();
+
+                    // Notify any listeners
+                    if (this.onSelectionChanged) {
+                        this.onSelectionChanged();
+                    }
+
+                    return; // Exit early to prevent further UI updates that might cause issues
                 }
             }
         } else {
@@ -286,16 +311,19 @@ export class BreedingUI {
             this.onSelectionChanged();
         }
 
-        // Update UI
-        // Update UI
+        // Update UI - remove all selection highlights
         const selectionElements = this.selectionPanel.querySelectorAll('.breeding-fish-selection');
-
-        for (const element of selectionElements) {
+        selectionElements.forEach(element => {
             element.classList.remove('selected');
+        });
 
-            if (this.selectedFish && (element as HTMLElement).dataset.fishId === this.selectedFish.id) {
-                element.classList.add('selected');
-            }
+        // Add highlight only to the currently selected fish
+        if (this.selectedFish) {
+            selectionElements.forEach(element => {
+                if ((element as HTMLElement).dataset.fishId === this.selectedFish?.id) {
+                    element.classList.add('selected');
+                }
+            });
         }
 
         this.updateSelectedFishDisplay();
@@ -469,7 +497,7 @@ export class BreedingUI {
 
                     if (compatibleFish && this.selectedFish) {
                         // Calculate chances
-                        const { successChance, offspringRange, mutationChance } =
+                        const {successChance, offspringRange, mutationChance} =
                             this.calculateBreedingChances(this.selectedFish, compatibleFish, efficiency);
 
                         // Only show up to 3 examples to avoid cluttering the UI
@@ -610,6 +638,18 @@ export class BreedingUI {
      */
     resetSelection(): void {
         this.selectedFish = null;
+
+        // Clear selection highlights
+        const selectionElements = this.selectionPanel.querySelectorAll('.breeding-fish-selection');
+        selectionElements.forEach(element => {
+            element.classList.remove('selected');
+        });
+
         this.updateSelectedFishDisplay();
+
+        // Notify any listeners
+        if (this.onSelectionChanged) {
+            this.onSelectionChanged();
+        }
     }
 }

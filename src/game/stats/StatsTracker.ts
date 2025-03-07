@@ -1,3 +1,5 @@
+// Updated StatsTracker.ts
+
 import { Fish } from '../fish/Fish';
 import { FishRarity } from '../../utils/Constants';
 import { Achievement } from './Achievement';
@@ -8,6 +10,9 @@ import { Achievement } from './Achievement';
 export class StatsTracker {
     // Game statistics
     private stats: Map<string, number> = new Map();
+
+    // Track unique species caught (for layer requirements)
+    private uniqueSpeciesCaught: Set<string> = new Set();
 
     // Available achievements
     private achievements: Map<string, Achievement> = new Map();
@@ -31,6 +36,7 @@ export class StatsTracker {
         this.setStat('rareFishCaught', 0);
         this.setStat('legendaryFishCaught', 0);
         this.setStat('mythicFishCaught', 0);
+        this.setStat('uniqueSpeciesCaught', 0);
 
         // For each fish species (will be populated as fish are caught)
 
@@ -99,11 +105,31 @@ export class StatsTracker {
         const speciesStatName = `${fish.speciesId}Caught`;
         this.incrementStat(speciesStatName);
 
+        // Track unique species caught
+        if (!this.uniqueSpeciesCaught.has(fish.speciesId)) {
+            this.uniqueSpeciesCaught.add(fish.speciesId);
+            this.incrementStat('uniqueSpeciesCaught');
+        }
+
         // Update max depth
         const currentMaxDepth = this.getStat('maxDepthReached');
         if (fish.caughtDepth > currentMaxDepth) {
             this.setStat('maxDepthReached', fish.caughtDepth);
         }
+    }
+
+    /**
+     * Get all unique species ever caught
+     */
+    getUniqueSpeciesCaught(): Set<string> {
+        return new Set(this.uniqueSpeciesCaught);
+    }
+
+    /**
+     * Get count of unique species caught
+     */
+    getUniqueSpeciesCount(): number {
+        return this.uniqueSpeciesCaught.size;
     }
 
     /**
@@ -223,6 +249,7 @@ export class StatsTracker {
     serialize(): object {
         return {
             stats: Object.fromEntries(this.stats),
+            uniqueSpeciesCaught: Array.from(this.uniqueSpeciesCaught),
             achievements: Array.from(this.achievements.values()).map(achievement => achievement.serialize())
         };
     }
@@ -238,6 +265,11 @@ export class StatsTracker {
             for (const [key, value] of Object.entries(data.stats)) {
                 this.stats.set(key, value as number);
             }
+        }
+
+        // Restore unique species caught
+        if (data.uniqueSpeciesCaught && Array.isArray(data.uniqueSpeciesCaught)) {
+            this.uniqueSpeciesCaught = new Set(data.uniqueSpeciesCaught);
         }
 
         // Restore achievements (assumes achievements have already been added)
