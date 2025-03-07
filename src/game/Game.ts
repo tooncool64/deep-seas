@@ -6,8 +6,7 @@ import { UpgradeManager } from './upgrades/UpgradeManager';
 import { LayerManager } from './layers/LayerManager';
 import { SaveManager } from './save/SaveManager';
 import { UIManager } from '../ui/UIManager';
-import {DepthLayer, INITIAL_GAME_STATE, TIME_CONSTANTS, UpgradeType} from '../utils/Constants';
-import { randomInt } from '../utils/Random';
+import { DepthLayer, INITIAL_GAME_STATE, TIME_CONSTANTS, UpgradeType } from '../utils/Constants';
 import { BreedingManager } from './breeding/BreedingManager';
 import { AbilityManager } from './abilities/AbilityManager';
 import { StatsTracker } from './stats/StatsTracker';
@@ -16,16 +15,23 @@ import { BreedingUI } from '../ui/BreedingUI';
 import { FishDetailsUI } from '../ui/FishDetailsUI';
 import { Achievement } from './stats/Achievement';
 import { INITIAL_ACHIEVEMENTS } from '../utils/Constants';
-import {BreedingOutcome} from "./breeding/BreedingOutcome";
+import { BreedingOutcome } from "./breeding/BreedingOutcome";
 import { FishTankManager } from './tanks/FishTankManager';
 import { FishTankUI } from '../ui/FishTankUI';
-import {FishAbility} from "./abilities/FishAbility";
+import { FishAbility } from "./abilities/FishAbility";
+
+// Import new service classes
+import { ServiceManager } from './ServiceManager';
+import { FishingService } from './FishingService';
+import { BreedingService } from './BreedingService';
+import { TankService } from './TankService';
+import { EconomyService } from './EconomyService';
 
 /**
  * Main game controller class
  */
 export class Game {
-    // Game systems
+    // Core systems
     private fishManager: FishManager;
     private inventory: Inventory;
     private economy: Economy;
@@ -34,63 +40,62 @@ export class Game {
     private ui: UIManager;
     private tankManager: FishTankManager;
     private tankUI: FishTankUI;
-
-    // Game state
-    private currentDepth: number = 0;
-    private maxDepth: number = INITIAL_GAME_STATE.maxDepth;
-    private fishingPower: number = INITIAL_GAME_STATE.fishingPower;
-    private lineStrength: number = INITIAL_GAME_STATE.lineStrength;
-    private catchSpeed: number = INITIAL_GAME_STATE.catchSpeed;
-
-    // Fishing state
-    private isFishing: boolean = false;
-    private fishingTimeout: NodeJS.Timeout | null = null;
-
-    // New game systems for Cycle 2
     private breedingManager: BreedingManager;
     private abilityManager: AbilityManager;
     private statsTracker: StatsTracker;
-    private breedingTimerInterval: number | null = null;
 
-    // Additional UI components
+    // UI components
     private breedingUI: BreedingUI;
     private fishDetailsUI: FishDetailsUI;
+
+    // Service manager and services
+    private serviceManager!: ServiceManager;
+    private fishingService!: FishingService;
+    private breedingService!: BreedingService;
+    private tankService!: TankService;
+    private economyService!: EconomyService;
 
     // Game loop
     private lastUpdateTime: number = 0;
     private gameLoopId: number | null = null;
+    private breedingTimerInterval: number | null = null;
 
     constructor() {
-        // Initialize game systems
+        // Initialize core systems
         this.fishManager = new FishManager();
         this.economy = new Economy(INITIAL_GAME_STATE.money);
         this.inventory = new Inventory(INITIAL_GAME_STATE.tankCapacity);
         this.upgradeManager = new UpgradeManager(this.economy);
         this.layerManager = new LayerManager(this.fishManager);
         this.ui = new UIManager();
-        // Initialize new systems for Cycle 2
         this.breedingManager = new BreedingManager(this.fishManager);
         this.abilityManager = new AbilityManager();
         this.statsTracker = new StatsTracker();
+        this.tankManager = new FishTankManager();
+
+        // Initialize UI components
+        this.breedingUI = new BreedingUI();
+        this.fishDetailsUI = new FishDetailsUI();
+        this.tankUI = new FishTankUI();
+
+        // Set up tank UI callbacks
+        this.tankUI.setAddToTankCallback((fish, tankId) => this.addFishToTank(fish, tankId));
+        this.tankUI.setRemoveFromTankCallback((tankId) => this.removeFishFromTank(tankId));
+        this.tankUI.setViewFishDetailsCallback((fishId) => this.showFishDetails(fishId));
 
         // Initialize Deep Sea layer
         const deepSeaLayer = new DeepSeaLayer(this.fishManager);
         deepSeaLayer.initialize();
         this.layerManager.addLayer(deepSeaLayer);
 
-        // Initialize additional UI
-        this.breedingUI = new BreedingUI();
-        this.fishDetailsUI = new FishDetailsUI();
-
-        this.tankManager = new FishTankManager();
-        this.tankUI = new FishTankUI();
-        this.tankUI.setAddToTankCallback((fish, tankId) => this.addFishToTank(fish, tankId));
-        this.tankUI.setRemoveFromTankCallback((tankId) => this.removeFishFromTank(tankId));
-        this.tankUI.setViewFishDetailsCallback((fishId) => this.showFishDetails(fishId));
-
         // Initialize achievements
         this.initializeAchievements();
 
+        // Set up service manager and services
+        this.serviceManager = new ServiceManager();
+        this.initializeServices();
+
+        // Register stat change callbacks
         this.statsTracker.registerStatChangedCallback((statName, value) => {
             if (this.ui.getCurrentTab() === 'stats-tab') {
                 this.updateStatsDisplay();
@@ -129,16 +134,96 @@ export class Game {
     }
 
     /**
+     * Initialize game services
+     */
+    private initializeServices(): void {
+        // Create services
+        this.fishingService = new FishingService(
+            this.fishManager,
+            this.inventory,
+            this.layerManager,
+            this.statsTracker,
+            this.abilityManager
+        );
+
+        this.breedingService = new BreedingService(
+            this.breedingManager,
+            this.statsTracker,
+            this.abilityManager
+        );
+
+        this.tankService = new TankService(
+            this.tankManager,
+            this.abilityManager,
+            this.inventory
+        );
+
+        this.economyService = new EconomyService(
+            this.economy,
+            this.abilityManager,
+            this.statsTracker
+        );
+
+        // Register services with manager
+        this.serviceManager.registerService('fishing', this.fishingService);
+        this.serviceManager.registerService('breeding', this.breedingService);
+        this.serviceManager.registerService('tanks', this.tankService);
+        this.serviceManager.registerService('economy', this.economyService);
+
+        // Initialize all services
+        this.serviceManager.initializeServices();
+
+        // Set up service callbacks
+        this.setupServiceCallbacks();
+    }
+
+    /**
+     * Set up callbacks for services
+     */
+    private setupServiceCallbacks(): void {
+        // Fishing service callbacks
+        this.fishingService.registerFishCaughtCallback((fish) => {
+            this.showFishCaught(fish);
+            this.updateUI();
+        });
+
+        this.fishingService.registerFishingStartCallback(() => {
+            this.ui.setFishingInProgress(true);
+        });
+
+        this.fishingService.registerFishingEndCallback(() => {
+            this.ui.setFishingInProgress(false);
+        });
+
+        // Breeding service callbacks
+        this.breedingService.registerBreedingOutcomeCallback((outcome) => {
+            this.handleBreedingOutcome(outcome);
+        });
+
+        // Tank service callbacks
+        this.tankService.registerTanksChangedCallback(() => {
+            this.updateTanksUI();
+            this.updateUI();
+        });
+
+        // Economy service callbacks
+        this.economyService.registerMoneyChangedCallback((money) => {
+            this.ui.updateMoneyDisplay(money);
+        });
+    }
+
+    /**
      * Set up UI event handlers
      */
     private setupEventHandlers(): void {
         // Cast line button
         this.ui.registerCastLineHandler(() => this.startFishing());
 
-        // Save button
+        // Save and reset buttons
         this.ui.registerSaveHandler(() => this.saveGame());
         this.ui.registerResetHandler(() => this.resetGame());
 
+        // Tab change handler
         this.ui.registerTabChangeHandler((tabId) => {
             if (tabId === 'tanks-tab') {
                 this.updateTanksUI();
@@ -151,19 +236,11 @@ export class Game {
             }
         });
 
-        // Economy events
-        this.economy.registerMoneyChangedCallback((money) => {
-            this.ui.updateMoneyDisplay(money);
-        });
-
         // Upgrade events
         this.upgradeManager.registerUpgradePurchasedCallback((upgrade) => {
             this.applyUpgradeEffects();
             this.ui.updateUpgrades(this.upgradeManager.getUpgrades(),
                 (upgradeId) => this.upgradeManager.purchaseUpgrade(upgradeId));
-
-            // Track money spent
-            this.statsTracker.registerMoneySpent(upgrade.nextCost);
 
             // Handle special upgrade types
             if (upgrade.type === UpgradeType.BREEDING_TANKS && upgrade.level === 1) {
@@ -194,19 +271,15 @@ export class Game {
             if (upgrade.type === UpgradeType.BREEDING_EFFICIENCY) {
                 const breedingEfficiency = 1 + this.upgradeManager.getTotalBonusForType(UpgradeType.BREEDING_EFFICIENCY);
                 this.breedingUI.setBreedingEfficiency(breedingEfficiency);
+                this.breedingService.setBreedingEfficiency(breedingEfficiency);
             }
         });
 
-        // Breeding events
-        this.breedingManager.registerBreedingCompleteCallback((outcome) => {
-            this.handleBreedingOutcome(outcome);
-        });
-
+        // Set up breeding UI callbacks
         this.breedingUI.setSelectionChangedCallback(() => {
             this.updateUI(); // Update UI when breeding selection changes
         });
 
-        // Set up breeding UI callbacks
         this.breedingUI.setStartBreedingCallback((fish1, fish2) => this.startBreeding(fish1, fish2));
         this.breedingUI.setCancelBreedingCallback((tankId) => this.cancelBreeding(tankId));
 
@@ -222,9 +295,6 @@ export class Game {
             }
         });
 
-        this.breedingUI.setStartBreedingCallback((fish1, fish2) => this.startBreeding(fish1, fish2));
-        this.breedingUI.setCancelBreedingCallback((tankId) => this.cancelBreeding(tankId));
-
         this.breedingUI.setBreedingChanceCalculator((fish1, fish2, efficiency) => {
             const successChance = this.breedingManager.calculateBreedingSuccessChance(fish1, fish2, efficiency);
             const offspringRange = this.breedingManager.calculatePotentialOffspringRange(efficiency);
@@ -233,10 +303,9 @@ export class Game {
             return { successChance, offspringRange, mutationChance };
         });
 
-// Set breeding efficiency based on upgrades
+        // Set breeding efficiency based on upgrades
         const breedingEfficiency = 1 + this.upgradeManager.getTotalBonusForType(UpgradeType.BREEDING_EFFICIENCY);
         this.breedingUI.setBreedingEfficiency(breedingEfficiency);
-
 
         document.addEventListener('click', (event) => {
             const target = event.target as HTMLElement;
@@ -251,11 +320,29 @@ export class Game {
         this.updateUI();
     }
 
-    private stopBreedingTimerUpdates(): void {
-        if (this.breedingTimerInterval !== null) {
-            window.clearInterval(this.breedingTimerInterval);
-            this.breedingTimerInterval = null;
+    /**
+     * Start fishing process using the fishing service
+     */
+    private startFishing(): void {
+        // Check if inventory is full before delegating to service
+        if (this.inventory.isFull()) {
+            this.ui.showNotification('Inventory is full! Sell some fish first.', 'error');
+            return;
         }
+
+        const success = this.fishingService.startFishing();
+
+        if (!success) {
+            // If fishing couldn't start for some reason
+            this.ui.showNotification('Unable to start fishing!', 'error');
+        }
+    }
+
+    /**
+     * Show fish caught animation and notification
+     */
+    private showFishCaught(fish: Fish | null): void {
+        this.ui.showFishCaught(fish);
     }
 
     /**
@@ -263,13 +350,13 @@ export class Game {
      */
     private applyUpgradeEffects(): void {
         // Get totals from upgrade manager
-        this.fishingPower = INITIAL_GAME_STATE.fishingPower +
+        const fishingPower = INITIAL_GAME_STATE.fishingPower +
             this.upgradeManager.getTotalBonusForType(UpgradeType.FISHING_POWER);
 
-        this.lineStrength = INITIAL_GAME_STATE.lineStrength +
+        const lineStrength = INITIAL_GAME_STATE.lineStrength +
             this.upgradeManager.getTotalBonusForType(UpgradeType.LINE_STRENGTH);
 
-        this.maxDepth = INITIAL_GAME_STATE.maxDepth +
+        const maxDepth = INITIAL_GAME_STATE.maxDepth +
             this.upgradeManager.getTotalBonusForType(UpgradeType.DEPTH_ACCESS);
 
         // Set inventory capacity
@@ -278,7 +365,7 @@ export class Game {
         this.inventory.setCapacity(tankCapacity);
 
         // Set catch speed
-        this.catchSpeed = INITIAL_GAME_STATE.catchSpeed +
+        const catchSpeed = INITIAL_GAME_STATE.catchSpeed +
             this.upgradeManager.getTotalBonusForType(UpgradeType.CATCH_SPEED);
 
         // Set breeding tanks
@@ -293,6 +380,15 @@ export class Game {
         if (deepSeaLayer) {
             deepSeaLayer.setPressureResistance(pressureResistance);
         }
+
+        // Update services with new values
+        this.fishingService.setFishingPower(fishingPower);
+        this.fishingService.setLineStrength(lineStrength);
+        this.fishingService.setMaxDepth(maxDepth);
+        this.fishingService.setCatchSpeed(catchSpeed);
+
+        const breedingEfficiency = 1 + this.upgradeManager.getTotalBonusForType(UpgradeType.BREEDING_EFFICIENCY);
+        this.breedingService.setBreedingEfficiency(breedingEfficiency);
     }
 
     /**
@@ -313,7 +409,7 @@ export class Game {
             {
                 inventory: this.inventory,
                 upgradeManager: this.upgradeManager,
-                fishingPower: this.fishingPower,
+                fishingPower: this.fishingService.getFishingPower?.() ?? 1,
                 tankManager: this.tankManager
             }
         );
@@ -332,35 +428,7 @@ export class Game {
     }
 
     /**
-     * Update layer requirements display
-     */
-    private updateLayerRequirements(): void {
-        const requirements = this.layerManager.getLayerRequirementStatus(
-            DepthLayer.DEEP_SEA,
-            {
-                inventory: this.inventory,
-                upgradeManager: this.upgradeManager,
-                fishingPower: this.fishingPower,
-                tankManager: this.tankManager
-            }
-        );
-
-        this.ui.updateLayerRequirements(requirements);
-    }
-
-    private updateStatsDisplay(): void {
-        // Update stats
-        this.ui.updateStats(this.statsTracker.getAllStats());
-
-        // Update achievements
-        this.ui.updateAchievements(
-            this.statsTracker.getAllAchievements(),
-            this.statsTracker.getAllStats()
-        );
-    }
-
-    /**
-     * Check if requirements are met for transitioning to a layer
+     * Check layer requirements
      */
     private checkLayerRequirements(layerId: string): boolean {
         return this.layerManager.checkLayerRequirements(
@@ -368,10 +436,27 @@ export class Game {
             {
                 inventory: this.inventory,
                 upgradeManager: this.upgradeManager,
-                fishingPower: this.fishingPower,
+                fishingPower: this.fishingService.getFishingPower?.() ?? 1,
                 tankManager: this.tankManager
             }
         );
+    }
+
+    /**
+     * Update layer requirements
+     */
+    private updateLayerRequirements(): void {
+        const requirements = this.layerManager.getLayerRequirementStatus(
+            DepthLayer.DEEP_SEA,
+            {
+                inventory: this.inventory,
+                upgradeManager: this.upgradeManager,
+                fishingPower: this.fishingService.getFishingPower?.() ?? 1,
+                tankManager: this.tankManager
+            }
+        );
+
+        this.ui.updateLayerRequirements(requirements);
     }
 
     /**
@@ -386,8 +471,8 @@ export class Game {
             if (layer) {
                 // Set max depth to the new layer's max
                 const layerMaxDepth = layer.maxDepth;
-                if (layerMaxDepth > this.maxDepth) {
-                    this.maxDepth = layerMaxDepth;
+                if (layerMaxDepth > this.fishingService.getMaxDepth?.() ?? 0) {
+                    this.fishingService.setMaxDepth(layerMaxDepth);
                 }
 
                 // Show notification
@@ -397,253 +482,6 @@ export class Game {
                 this.ui.switchToTab('fishing-tab');
             }
         }
-    }
-
-    /**
-     * Add a fish to a tank
-     */
-    private addFishToTank(fish: Fish, tankId: string): boolean {
-        // Remove from inventory first
-        const removed = this.inventory.removeFish(fish.id);
-
-        if (!removed) {
-            this.ui.showNotification('Could not remove fish from inventory', 'error');
-            return false;
-        }
-
-        // Add to tank
-        let success: boolean;
-
-        if (tankId) {
-            success = this.tankManager.addFishToSpecificTank(fish, tankId);
-        } else {
-            const newTankId = this.tankManager.addFishToTank(fish);
-            success = newTankId !== null;
-        }
-
-        if (!success) {
-            // Failed to add to tank, return to inventory
-            this.inventory.addFish(fish);
-            this.ui.showNotification('Could not add fish to tank', 'error');
-            return false;
-        }
-
-        // Set fish as being in a tank for abilities
-        this.abilityManager.setFishInTank(fish.id, true);
-
-        // Update UI
-        this.updateTanksUI();
-        this.updateUI();
-
-        this.ui.showNotification(`${fish.displayName} has been added to a tank`, 'success');
-
-        return true;
-    }
-
-    /**
-     * Remove a fish from a tank
-     */
-    private removeFishFromTank(tankId: string): Fish | null {
-        // Remove from tank
-        const fish = this.tankManager.removeFishFromTank(tankId);
-
-        if (!fish) {
-            return null;
-        }
-
-        // Check if inventory has space
-        if (this.inventory.isFull()) {
-            // No space, return fish to tank
-            this.tankManager.addFishToSpecificTank(fish, tankId);
-            this.ui.showNotification('Inventory is full! Sell some fish first.', 'error');
-            return null;
-        }
-
-        // Set fish as not being in a tank for abilities
-        this.abilityManager.setFishInTank(fish.id, false);
-
-        // Add to inventory
-        this.inventory.addFish(fish);
-
-        // Update UI
-        this.updateTanksUI();
-        this.updateUI();
-
-        this.ui.showNotification(`${fish.displayName} has been removed from tank`, 'info');
-
-        return fish;
-    }
-
-    /**
-     * Update tanks UI
-     */
-    private updateTanksUI(): void {
-        const tanks = this.tankManager.getAllTanks();
-        const abilities = new Map<string, FishAbility>();
-
-        // Collect abilities for fish in tanks
-        for (const tank of tanks) {
-            if (tank.fish) {
-                const ability = this.abilityManager.getAbilityForFish(tank.fish.id);
-                if (ability) {
-                    abilities.set(tank.fish.id, ability);
-                }
-            }
-        }
-
-        // Update tanks display
-        this.tankUI.updateTanks(tanks, abilities);
-
-        // Update available fish display
-        const allFish = this.inventory.getAllFish();
-        const unavailableFishIds = new Set<string>();
-
-        // Collect abilities for fish in inventory
-        for (const fish of allFish) {
-            const ability = this.abilityManager.getAbilityForFish(fish.id);
-            if (ability) {
-                abilities.set(fish.id, ability);
-            }
-        }
-
-        this.tankUI.updateAvailableFish(allFish, abilities, unavailableFishIds);
-    }
-
-    /**
-     * Update all UI elements
-     */
-    private updateUI(): void {
-        // Get fish IDs selected for breeding
-        const disabledFishIds = new Set<string>();
-        const selectedFish = this.breedingUI.getSelectedFish();
-        if (selectedFish) {
-            disabledFishIds.add(selectedFish.id);
-        }
-        if (this.breedingUI) {
-            const selectedFish = this.breedingUI.getSelectedFish();
-            if (selectedFish) {
-                disabledFishIds.add(selectedFish.id);
-            }
-        }
-        for (const tank of this.breedingManager.getAllTanks()) {
-            if (tank.breedingPair) {
-                disabledFishIds.add(tank.breedingPair.fish1.id);
-                disabledFishIds.add(tank.breedingPair.fish2.id);
-            }
-        }
-
-        // Update money display
-        this.ui.updateMoneyDisplay(this.economy.money);
-
-        // Update depth display
-        this.ui.updateDepthDisplay(this.currentDepth);
-
-        // Update inventory with fish that can't be sold marked
-        this.ui.updateInventory(
-            this.inventory.getAllFish(),
-            this.inventory.maxCapacity,
-            (fishId) => this.sellFish(fishId),
-            (fishId) => this.showFishDetails(fishId),
-            disabledFishIds
-        );
-
-        // Update upgrades
-        this.ui.updateUpgrades(
-            this.upgradeManager.getUpgrades(),
-            (upgradeId) => this.upgradeManager.purchaseUpgrade(upgradeId)
-        );
-    }
-
-    /**
-     * Start fishing process
-     */
-    private startFishing(): void {
-        console.log("startFishing called");
-        if (this.isFishing) {
-            console.log("Already fishing, ignoring");
-            return;
-        }
-
-        // Check if inventory is full
-        if (this.inventory.isFull()) {
-            console.log("Inventory full");
-            this.ui.showNotification('Inventory is full! Sell some fish first.', 'error');
-            return;
-        }
-
-        // Set fishing state
-        this.isFishing = true;
-        this.ui.setFishingInProgress(true);
-
-        // Generate random depth within current max
-        this.currentDepth = randomInt(0, this.maxDepth);
-        console.log(`Fishing at depth: ${this.currentDepth}m`);
-        this.ui.updateDepthDisplay(this.currentDepth);
-
-        // Get active layer for current depth
-        const layer = this.layerManager.getLayerForDepth(this.currentDepth);
-
-        if (!layer) {
-            console.error("No layer found for depth:", this.currentDepth);
-            this.finishFishing(null);
-            return;
-        }
-
-        console.log(`Found layer: ${layer.name}`);
-
-        // Apply ability buffs to fishing power and catch speed
-        const fishingPowerBonus = this.abilityManager.getBuffValue('fishingPowerBonus');
-        const catchRateBonus = this.abilityManager.getBuffValue('catchRateBonus');
-
-        const totalFishingPower = this.fishingPower + fishingPowerBonus;
-        const totalCatchSpeed = this.catchSpeed + catchRateBonus;
-
-        // Calculate catch time based on depth and catch speed
-        const catchTime = layer.calculateCatchTime(this.currentDepth, totalCatchSpeed);
-        console.log(`Catch time: ${catchTime}ms`);
-
-        // Set timeout for fishing completion
-        this.fishingTimeout = setTimeout(() => {
-            console.log("Fishing timeout completed");
-
-            // Apply rarity boost to catch
-            const rarityBoostBonus = this.abilityManager.getBuffValue('rarityChanceBonus');
-
-            // Generate fish at current depth
-            const fish = layer.generateFish(this.currentDepth, totalFishingPower, rarityBoostBonus);
-
-            if (fish) {
-                console.log(`Caught fish: ${fish.displayName}`);
-                // Add to inventory
-                this.inventory.addFish(fish);
-
-                // Register in stats
-                this.statsTracker.registerFishCaught(fish);
-
-                // Process fish for abilities
-                this.abilityManager.processFish(fish);
-            } else {
-                console.log("No fish caught");
-            }
-
-            // Finish fishing
-            this.finishFishing(fish);
-        }, catchTime);
-    }
-
-    /**
-     * Finish fishing process
-     */
-    private finishFishing(fish: Fish | null): void {
-        // Reset fishing state
-        this.isFishing = false;
-        this.ui.setFishingInProgress(false);
-
-        // Show result
-        this.ui.showFishCaught(fish);
-
-        // Update UI
-        this.updateUI();
     }
 
     /**
@@ -673,15 +511,8 @@ export class Game {
         const fish = this.inventory.removeFish(fishId);
 
         if (fish) {
-            // Apply money multiplier from abilities
-            const moneyMultiplier = this.abilityManager.getBuffValue('moneyMultiplier');
-            const finalValue = Math.round(fish.value * moneyMultiplier);
-
-            // Add money from fish value
-            this.economy.addMoney(finalValue);
-
-            // Track money earned
-            this.statsTracker.registerMoneyEarned(finalValue);
+            // Sell the fish using the economy service
+            const finalValue = this.economyService.sellFish(fish);
 
             // Remove any abilities the fish had
             this.abilityManager.removeFishAbility(fishId);
@@ -694,7 +525,123 @@ export class Game {
         }
     }
 
-    /*
+    /**
+     * Add a fish to a tank
+     */
+    private addFishToTank(fish: Fish, tankId: string): boolean {
+        const success = this.tankService.addFishToTank(fish, tankId);
+
+        if (success) {
+            this.ui.showNotification(`${fish.displayName} has been added to a tank`, 'success');
+        } else {
+            this.ui.showNotification('Could not add fish to tank', 'error');
+        }
+
+        return success;
+    }
+
+    /**
+     * Remove a fish from a tank
+     */
+    private removeFishFromTank(tankId: string): Fish | null {
+        const fish = this.tankService.removeFishFromTank(tankId);
+
+        if (fish) {
+            this.ui.showNotification(`${fish.displayName} has been removed from tank`, 'info');
+        } else {
+            this.ui.showNotification('Inventory is full! Sell some fish first.', 'error');
+        }
+
+        return fish;
+    }
+
+    /**
+     * Start a breeding attempt
+     */
+    private startBreeding(fish1: Fish, fish2: Fish): boolean {
+        const success = this.breedingService.startBreeding(fish1, fish2);
+
+        if (success) {
+            this.ui.showNotification(`Started breeding ${fish1.displayName} with ${fish2.displayName}`, 'success');
+            this.updateBreedingUI();
+        } else {
+            this.ui.showNotification('Unable to start breeding. Check compatibility or tank availability.', 'error');
+        }
+
+        return success;
+    }
+
+    /**
+     * Handle breeding outcome
+     */
+    private handleBreedingOutcome(outcome: BreedingOutcome): void {
+        // Add offspring to inventory
+        for (const offspring of outcome.offspring) {
+            // Skip if inventory is full
+            if (this.inventory.isFull()) {
+                this.ui.showNotification('Some offspring couldn\'t be added - inventory full!', 'error');
+                break;
+            }
+
+            this.inventory.addFish(offspring);
+
+            // Process offspring for abilities
+            this.abilityManager.processFish(offspring);
+        }
+
+        // Show outcome in UI
+        this.breedingUI.showBreedingOutcome(outcome);
+
+        // Update UI
+        this.updateBreedingUI();
+        this.updateUI();
+    }
+
+    /**
+     * Cancel breeding in a tank
+     */
+    private cancelBreeding(tankId: string): void {
+        const success = this.breedingService.cancelBreeding(tankId);
+
+        if (success) {
+            this.ui.showNotification('Breeding canceled', 'info');
+            this.updateBreedingUI();
+        }
+    }
+
+    /**
+     * Show detailed information for a fish
+     */
+    private showFishDetails(fishId: string): void {
+        const fish = this.inventory.getFish(fishId);
+
+        if (!fish) {
+            return;
+        }
+
+        // Get ability for this fish if any
+        const ability = this.abilityManager.getAbilityForFish(fishId);
+
+        // Show details
+        this.fishDetailsUI.showFishDetails(fish, ability);
+    }
+
+    /**
+     * Activate a fish ability
+     */
+    private activateAbility(abilityId: string): boolean {
+        const success = this.abilityManager.activateAbility(abilityId);
+
+        if (success) {
+            this.ui.showNotification('Ability activated!', 'success');
+            this.statsTracker.registerAbilityActivated();
+        } else {
+            this.ui.showNotification('Unable to activate ability', 'error');
+        }
+
+        return success;
+    }
+
     /**
      * Initialize achievements
      */
@@ -763,105 +710,86 @@ export class Game {
      * Update all game systems
      */
     private updateGame(deltaTime: number): void {
-        // Update breeding system
-        this.breedingManager.update(deltaTime);
+        // Update services
+        this.serviceManager.updateServices(deltaTime);
 
-        // Update abilities
+        // Update other systems
         this.abilityManager.update(deltaTime);
-
-        // Update stats
         this.statsTracker.updatePlayTime(deltaTime);
-
-        // Apply passive income from abilities
-        const passiveIncome = this.abilityManager.getBuffValue('passiveIncome');
-        if (passiveIncome > 0) {
-            // Convert to amount per frame
-            const incomeThisFrame = (passiveIncome * deltaTime) / 1000;
-            this.economy.addMoney(incomeThisFrame);
-        }
     }
 
     /**
-     * Start a breeding attempt
+     * Update all UI elements
      */
-    private startBreeding(fish1: Fish, fish2: Fish): boolean {
-        // Apply breeding efficiency bonus from abilities
-        const breedingEfficiencyBonus = this.abilityManager.getBuffValue('breedingEfficiencyBonus');
-
-        // Get breeding efficiency from upgrades
-        const breedingEfficiencyUpgrades =
-            this.upgradeManager.getTotalBonusForType(UpgradeType.BREEDING_EFFICIENCY);
-
-        // Calculate total breeding efficiency
-        const totalBreedingEfficiency = 1 + breedingEfficiencyUpgrades + breedingEfficiencyBonus;
-
-        // Start breeding
-        const tankId = this.breedingManager.startBreeding(
-            fish1,
-            fish2,
-            totalBreedingEfficiency
-        );
-
-        if (!tankId) {
-            this.ui.showNotification('Unable to start breeding. Check compatibility or tank availability.', 'error');
-            return false;
+    private updateUI(): void {
+        // Get fish IDs selected for breeding
+        const disabledFishIds = new Set<string>();
+        const selectedFish = this.breedingUI.getSelectedFish();
+        if (selectedFish) {
+            disabledFishIds.add(selectedFish.id);
         }
-
-        // Track breeding attempt
-        this.statsTracker.registerBreedingAttempt(true);
-
-        // Show notification
-        this.ui.showNotification(`Started breeding ${fish1.displayName} with ${fish2.displayName}`, 'success');
-
-        // Update UI
-        this.updateBreedingUI();
-
-        return true;
-    }
-
-    /**
-     * Handle breeding outcome
-     */
-    private handleBreedingOutcome(outcome: BreedingOutcome): void {
-        // Add offspring to inventory
-        for (const offspring of outcome.offspring) {
-            // Skip if inventory is full
-            if (this.inventory.isFull()) {
-                this.ui.showNotification('Some offspring couldn\'t be added - inventory full!', 'error');
-                break;
+        for (const tank of this.breedingManager.getAllTanks()) {
+            if (tank.breedingPair) {
+                disabledFishIds.add(tank.breedingPair.fish1.id);
+                disabledFishIds.add(tank.breedingPair.fish2.id);
             }
-
-            this.inventory.addFish(offspring);
-
-            // Process offspring for abilities
-            this.abilityManager.processFish(offspring);
         }
 
-        // Update stats
-        this.statsTracker.registerBreedingAttempt(
-            true,
-            outcome.offspring.length,
-            outcome.hasMutation
+        // Update money display
+        this.ui.updateMoneyDisplay(this.economy.money);
+
+        // Update depth display
+        this.ui.updateDepthDisplay(this.fishingService.getCurrentDepth());
+
+        // Update inventory with fish that can't be sold marked
+        this.ui.updateInventory(
+            this.inventory.getAllFish(),
+            this.inventory.maxCapacity,
+            (fishId) => this.sellFish(fishId),
+            (fishId) => this.showFishDetails(fishId),
+            disabledFishIds
         );
 
-        // Show outcome in UI
-        this.breedingUI.showBreedingOutcome(outcome);
-
-        // Update UI
-        this.updateBreedingUI();
-        this.updateUI();
+        // Update upgrades
+        this.ui.updateUpgrades(
+            this.upgradeManager.getUpgrades(),
+            (upgradeId) => this.upgradeManager.purchaseUpgrade(upgradeId)
+        );
     }
 
     /**
-     * Cancel breeding in a tank
+     * Update tanks UI
      */
-    private cancelBreeding(tankId: string): void {
-        const success = this.breedingManager.cancelBreeding(tankId);
+    private updateTanksUI(): void {
+        const tanks = this.tankManager.getAllTanks();
+        const abilities = new Map<string, FishAbility>();
 
-        if (success) {
-            this.ui.showNotification('Breeding canceled', 'info');
-            this.updateBreedingUI();
+        // Collect abilities for fish in tanks
+        for (const tank of tanks) {
+            if (tank.fish) {
+                const ability = this.abilityManager.getAbilityForFish(tank.fish.id);
+                if (ability) {
+                    abilities.set(tank.fish.id, ability);
+                }
+            }
         }
+
+        // Update tanks display
+        this.tankUI.updateTanks(tanks, abilities);
+
+        // Update available fish display
+        const allFish = this.inventory.getAllFish();
+        const unavailableFishIds = new Set<string>();
+
+        // Collect abilities for fish in inventory
+        for (const fish of allFish) {
+            const ability = this.abilityManager.getAbilityForFish(fish.id);
+            if (ability) {
+                abilities.set(fish.id, ability);
+            }
+        }
+
+        this.tankUI.updateAvailableFish(allFish, abilities, unavailableFishIds);
     }
 
     /**
@@ -879,38 +807,78 @@ export class Game {
     }
 
     /**
-     * Show detailed information for a fish
+     * Update stats display
      */
-    private showFishDetails(fishId: string): void {
-        const fish = this.inventory.getFish(fishId);
+    private updateStatsDisplay(): void {
+        // Update stats
+        this.ui.updateStats(this.statsTracker.getAllStats());
 
-        if (!fish) {
-            return;
-        }
-
-        // Get ability for this fish if any
-        const ability = this.abilityManager.getAbilityForFish(fishId);
-
-        // Show details
-        this.fishDetailsUI.showFishDetails(fish, ability);
+        // Update achievements
+        this.ui.updateAchievements(
+            this.statsTracker.getAllAchievements(),
+            this.statsTracker.getAllStats()
+        );
     }
 
     /**
-     * Activate a fish ability
+     * Start timer updates for breeding
      */
-    private activateAbility(abilityId: string): boolean {
-        const success = this.abilityManager.activateAbility(abilityId);
-
-        if (success) {
-            this.ui.showNotification('Ability activated!', 'success');
-            this.statsTracker.registerAbilityActivated();
-        } else {
-            this.ui.showNotification('Unable to activate ability', 'error');
+    private startBreedingTimerUpdates(): void {
+        // Clear any existing interval
+        if (this.breedingTimerInterval !== null) {
+            window.clearInterval(this.breedingTimerInterval);
         }
 
-        return success;
+        // Start new interval that updates every second
+        this.breedingTimerInterval = window.setInterval(() => {
+            // Only update if on breeding tab
+            if (this.ui.getCurrentTab() === 'breeding-tab') {
+                this.breedingUI.updateBreedingTimers(this.breedingManager.getAllTanks());
+            }
+        }, 1000); // Update every second
     }
 
+    /**
+     * Stop breeding timer updates
+     */
+    private stopBreedingTimerUpdates(): void {
+        if (this.breedingTimerInterval !== null) {
+            window.clearInterval(this.breedingTimerInterval);
+            this.breedingTimerInterval = null;
+        }
+    }
+
+    /**
+     * Handle breeding fish selection
+     */
+    private handleBreedingFishSelection(fish: Fish): void {
+        // Show breeding UI
+        const breedingContainer = document.getElementById('breeding-area');
+        if (breedingContainer) {
+            breedingContainer.scrollIntoView({behavior: 'smooth'});
+        }
+
+        // Ensure breeding selection panel is visible
+        const selectionPanel = document.querySelector('.breeding-selection-panel');
+        if (selectionPanel) {
+            (selectionPanel as HTMLElement).style.display = 'block';
+        }
+
+        // Find and click the fish in the selection panel
+        setTimeout(() => {
+            const fishElements = document.querySelectorAll('.breeding-fish-selection');
+            for (const element of fishElements) {
+                if ((element as HTMLElement).dataset.fishId === fish.id) {
+                    (element as HTMLElement).click();
+                    break;
+                }
+            }
+        }, 100);
+    }
+
+    /**
+     * Reset the game
+     */
     async resetGame(): Promise<void> {
         // Show confirmation dialog
         if (!confirm("Are you sure you want to reset the game? All progress will be lost!")) {
@@ -937,47 +905,6 @@ export class Game {
         }
     }
 
-    private handleBreedingFishSelection(fish: Fish): void {
-        // Show breeding UI
-        const breedingContainer = document.getElementById('breeding-area');
-        if (breedingContainer) {
-            breedingContainer.scrollIntoView({behavior: 'smooth'});
-        }
-
-        // Ensure breeding selection panel is visible
-        const selectionPanel = document.querySelector('.breeding-selection-panel');
-        if (selectionPanel) {
-            (selectionPanel as HTMLElement).style.display = 'block';
-        }
-
-        // Find and click the fish in the selection panel
-        setTimeout(() => {
-            const fishElements = document.querySelectorAll('.breeding-fish-selection');
-            for (const element of fishElements) {
-                if ((element as HTMLElement).dataset.fishId === fish.id) {
-                    (element as HTMLElement).click();
-                    break;
-                }
-            }
-        }, 100);
-    }
-
-    private startBreedingTimerUpdates(): void {
-        // Clear any existing interval
-        if (this.breedingTimerInterval !== null) {
-            window.clearInterval(this.breedingTimerInterval);
-        }
-
-        // Start new interval that updates every second
-        this.breedingTimerInterval = window.setInterval(() => {
-            // Only update if on breeding tab
-            if (this.ui.getCurrentTab() === 'breeding-tab') {
-                this.breedingUI.updateBreedingTimers(this.breedingManager.getAllTanks());
-            }
-        }, 1000); // Update every second
-    }
-
-
     /**
      * Save the game
      */
@@ -994,13 +921,7 @@ export class Game {
             breeding: this.breedingManager.serialize(),
             abilities: this.abilityManager.serialize(),
             stats: this.statsTracker.serialize(),
-            playerStats: {
-                currentDepth: this.currentDepth,
-                maxDepth: this.maxDepth,
-                fishingPower: this.fishingPower,
-                lineStrength: this.lineStrength,
-                catchSpeed: this.catchSpeed
-            }
+            services: this.serviceManager.serializeServices()
         };
 
         // Save using save manager
@@ -1012,8 +933,10 @@ export class Game {
         } else {
             this.ui.showNotification('Failed to save game.', 'error');
         }
-    }
 
+        // Restart game loop
+        this.startGameLoop();
+    }
 
     /**
      * Load the game
@@ -1037,8 +960,6 @@ export class Game {
         }
 
         try {
-            // Instead of replacing instances, load data into existing objects
-
             // Restore inventory
             if (saveData.inventory) {
                 // Clear existing inventory
@@ -1120,13 +1041,9 @@ export class Game {
                 this.statsTracker.deserialize(saveData.stats);
             }
 
-            // Restore player stats
-            if (saveData.playerStats) {
-                this.currentDepth = saveData.playerStats.currentDepth ?? this.currentDepth;
-                this.maxDepth = saveData.playerStats.maxDepth ?? this.maxDepth;
-                this.fishingPower = saveData.playerStats.fishingPower ?? this.fishingPower;
-                this.lineStrength = saveData.playerStats.lineStrength ?? this.lineStrength;
-                this.catchSpeed = saveData.playerStats.catchSpeed ?? this.catchSpeed;
+            // Restore services
+            if (saveData.services) {
+                this.serviceManager.deserializeServices(saveData.services);
             }
 
             // Apply upgrade effects to ensure stats are correct

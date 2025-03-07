@@ -1,6 +1,5 @@
 import { Fish } from '../game/fish/Fish';
 import { Upgrade } from '../game/upgrades/Upgrade';
-import { FishAbility } from '../game/abilities/FishAbility';
 import { Achievement } from '../game/stats/Achievement';
 
 /**
@@ -290,62 +289,6 @@ export class UIManager {
         setTimeout(() => {
             catchAnimation.remove();
         }, 1000);
-    }
-
-    updateInventoryWithAbilities(
-        fish: Fish[],
-        inventoryCapacity: number,
-        sellHandler: (fishId: string) => void,
-        fishAbilities: Map<string, FishAbility>
-    ): void {
-        // Clear existing slots
-        this.inventorySlots.innerHTML = '';
-
-        // Create fish slots
-        for (let i = 0; i < inventoryCapacity; i++) {
-            const slot = document.createElement('div');
-            slot.className = 'inventory-slot';
-
-            // If this slot has a fish, populate it
-            if (i < fish.length) {
-                const currentFish = fish[i];
-                slot.classList.add('filled');
-
-                // Create fish display
-                const fishElement = document.createElement('div');
-                fishElement.className = `fish-item ${currentFish.rarity}`;
-                fishElement.dataset.fishId = currentFish.id;
-
-                // Check if fish has ability
-                const hasAbility = fishAbilities.has(currentFish.id);
-
-                fishElement.innerHTML = `
-                    <div class="fish-name">${currentFish.displayName} ${hasAbility ? '<span class="ability-indicator">✨</span>' : ''}</div>
-                    <div class="fish-details">
-                        <div>${currentFish.weight}kg</div>
-                        <div>$${currentFish.value}</div>
-                    </div>
-                `;
-
-                // Create sell button
-                const sellButton = document.createElement('button');
-                sellButton.className = 'sell-button';
-                sellButton.textContent = 'Sell';
-                sellButton.addEventListener('click', (event) => {
-                    event.stopPropagation(); // Prevent opening details when clicking sell
-                    sellHandler(currentFish.id);
-                });
-
-                // Add to slot
-                fishElement.appendChild(sellButton);
-                slot.appendChild(fishElement);
-            } else {
-                // Empty slot
-                slot.innerHTML = '<div class="empty-slot">Empty</div>';
-            }
-
-            this.inventorySlots.appendChild(slot);
-        }
     }
 
     /**
