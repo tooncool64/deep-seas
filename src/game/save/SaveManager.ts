@@ -84,6 +84,38 @@ export class SaveManager {
         }
     }
 
+    static async deleteSaveData(): Promise<boolean> {
+        try {
+            // Try to delete with Electron IPC first
+            if (typeof window !== 'undefined' && window.require) {
+                try {
+                    const { ipcRenderer } = window.require('electron');
+                    const result = await ipcRenderer.invoke('delete-save');
+                    if (result && result.success) {
+                        // Also clear localStorage just to be safe
+                        localStorage.removeItem('deepSeasSaveData');
+                        return true;
+                    }
+                } catch (err) {
+                    console.warn('Unable to use Electron IPC, falling back to localStorage');
+                }
+            }
+
+            // Fallback to localStorage
+            localStorage.removeItem('deepSeasSaveData');
+
+            // Also clear any other game-related data that might be in localStorage
+            // List all keys that might contain game data
+            const keysToRemove = ['deepSeasSaveData'];
+            keysToRemove.forEach(key => localStorage.removeItem(key));
+
+            return true;
+        } catch (error) {
+            console.error('Failed to delete save data:', error);
+            return false;
+        }
+    }
+
     // Auto-save interval handler
     private static autoSaveInterval: number | null = null;
 

@@ -132,20 +132,28 @@ export class BreedingUI {
                 const fishInfo = document.createElement('div');
                 fishInfo.className = 'breeding-fish-info';
                 fishInfo.innerHTML = `
-                    <div>${pairInfo.fish1Name}</div>
-                    <div>+</div>
-                    <div>${pairInfo.fish2Name}</div>
-                `;
+                <div>${pairInfo.fish1Name}</div>
+                <div>+</div>
+                <div>${pairInfo.fish2Name}</div>
+            `;
                 tankElement.appendChild(fishInfo);
 
-                // Add progress bar
+                // Add progress bar with time remaining
                 const progress = tank.getProgress() * 100;
+                const timeRemaining = Math.ceil(tank.getTimeRemaining() / 1000); // in seconds
+
+                // Format time remaining nicely
+                const minutes = Math.floor(timeRemaining / 60);
+                const seconds = timeRemaining % 60;
+                const timeDisplay = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
                 const progressBar = document.createElement('div');
                 progressBar.className = 'breeding-progress-bar';
+                progressBar.dataset.tankId = tank.id; // Add tank ID for updates
                 progressBar.innerHTML = `
-                    <div class="progress-fill" style="width: ${progress}%"></div>
-                    <div class="progress-text">${progress.toFixed(0)}%</div>
-                `;
+                <div class="progress-fill" style="width: ${progress}%"></div>
+                <div class="progress-text">${progress.toFixed(0)}% (${timeDisplay})</div>
+            `;
                 tankElement.appendChild(progressBar);
 
                 // Add cancel button
@@ -274,8 +282,12 @@ export class BreedingUI {
             this.selectedFish = fish;
         }
 
+        if (this.onSelectionChanged) {
+            this.onSelectionChanged();
+        }
+
         // Update UI
-// Update UI
+        // Update UI
         const selectionElements = this.selectionPanel.querySelectorAll('.breeding-fish-selection');
 
         for (const element of selectionElements) {
@@ -288,6 +300,105 @@ export class BreedingUI {
 
         this.updateSelectedFishDisplay();
     }
+
+    getSelectedFish(): Fish | null {
+        return this.selectedFish;
+    }
+
+    private onSelectionChanged: (() => void) | null = null;
+
+    /**
+     * Set callback for when selection changes
+     */
+    setSelectionChangedCallback(callback: () => void): void {
+        this.onSelectionChanged = callback;
+    }
+
+    updateBreedingTimers(tanks: BreedingTank[]): void {
+        for (const tank of tanks) {
+            if (tank.isOccupied()) {
+                const progressBar = document.querySelector(`.breeding-progress-bar[data-tank-id="${tank.id}"]`);
+                if (progressBar) {
+                    const progress = tank.getProgress() * 100;
+                    const timeRemaining = Math.ceil(tank.getTimeRemaining() / 1000); // in seconds
+
+                    // Format time remaining
+                    const minutes = Math.floor(timeRemaining / 60);
+                    const seconds = timeRemaining % 60;
+                    const timeDisplay = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+                    // Update progress bar
+                    const progressFill = progressBar.querySelector('.progress-fill') as HTMLElement;
+                    const progressText = progressBar.querySelector('.progress-text') as HTMLElement;
+
+                    if (progressFill) {
+                        progressFill.style.width = `${progress}%`;
+                    }
+
+                    if (progressText) {
+                        progressText.textContent = `${progress.toFixed(0)}% (${timeDisplay})`;
+                    }
+                }
+            }
+        }
+    }
+
+    getBreedingFishIds(): Set<string> {
+        const breedingFishIds = new Set<string>();
+
+        // Add currently selected fish
+        if (this.selectedFish) {
+            breedingFishIds.add(this.selectedFish.id);
+        }
+
+        // Get all fish that are currently breeding in tanks
+        const tanks = document.querySelectorAll('.breeding-tank');
+        tanks.forEach(tank => {
+            const fishInfo = tank.querySelector('.breeding-fish-info');
+            if (fishInfo) {
+                // If we have fish info elements, this tank is active
+                const fishIdElements = tank.querySelectorAll('[data-fish-id]');
+                fishIdElements.forEach(el => {
+                    const fishId = (el as HTMLElement).dataset.fishId;
+                    if (fishId) {
+                        breedingFishIds.add(fishId);
+                    }
+                });
+            }
+        });
+
+        return breedingFishIds;
+    }
+
+    // Add a method to get breeding efficiency
+    private getBreedingEfficiency(): number {
+        // Default to 1 if not provided by game
+        return this.breedingEfficiency || 1;
+    }
+
+// Add a property for breeding efficiency
+    private breedingEfficiency: number = 1;
+
+// Add a method to set breeding efficiency
+    setBreedingEfficiency(efficiency: number): void {
+        this.breedingEfficiency = efficiency;
+    }
+
+// Add methods to calculate breeding chances
+    private calculateBreedingChances: ((fish1: Fish, fish2: Fish, efficiency: number) => {
+        successChance: number,
+        offspringRange: [number, number],
+        mutationChance: number
+    }) | null = null;
+
+    setBreedingChanceCalculator(calculator: (fish1: Fish, fish2: Fish, efficiency: number) => {
+        successChance: number,
+        offspringRange: [number, number],
+        mutationChance: number
+    }): void {
+        this.calculateBreedingChances = calculator;
+    }
+
 
     /**
      * Update the selected fish display
@@ -308,12 +419,86 @@ export class BreedingUI {
         display.className = 'selected-fish-display';
 
         // Add content
-        display.innerHTML = `
-            <h4>Selected Fish</h4>
-            <div class="fish-name ${this.selectedFish.rarity}">${this.selectedFish.displayName}</div>
-            <div>Select another compatible fish to start breeding</div>
-            <button class="cancel-selection-button">Cancel Selection</button>
-        `;
+        let content = `
+        <h4>Selected Fish</h4>
+        <div class="fish-name ${this.selectedFish.rarity}">${this.selectedFish.displayName}</div>
+        <div>Select another compatible fish to start breeding</div>
+    `;
+
+        // Check compatible fish in the selection container
+        const compatibleFishIds = new Set<string>();
+        const selectionElements = this.selectionPanel.querySelectorAll('.breeding-fish-selection:not(.incompatible):not(.selected)');
+        selectionElements.forEach(element => {
+            const fishId = (element as HTMLElement).dataset.fishId;
+            if (fishId) {
+                compatibleFishIds.add(fishId);
+            }
+        });
+
+        // If we have compatible fish and a calculator, show breeding chances
+        if (compatibleFishIds.size > 0 && this.calculateBreedingChances) {
+            content += `<div class="breeding-chances-header">Breeding Chances:</div>`;
+
+            // Loop through each compatible fish and show chances
+            const efficiency = this.getBreedingEfficiency();
+            let chancesAdded = 0;
+
+            selectionElements.forEach(element => {
+                const fishElement = element as HTMLElement;
+                const fishId = fishElement.dataset.fishId;
+                const fishNameElement = fishElement.querySelector('.fish-name');
+
+                if (fishId && fishNameElement && this.calculateBreedingChances) {
+                    // Find the fish object for this element
+                    const allFishElements = this.selectionPanel.querySelectorAll('[data-fish-id]');
+                    let compatibleFish: Fish | null = null;
+
+                    for (const el of Array.from(allFishElements)) {
+                        if ((el as HTMLElement).dataset.fishId === fishId) {
+                            // This is a hack - we should properly pass fish objects
+                            const rarity = (el.querySelector('.fish-name')?.className.split(' ')[1] || 'common');
+                            compatibleFish = {
+                                id: fishId,
+                                displayName: fishNameElement.textContent || 'Fish',
+                                rarity: rarity,
+                                caughtDepth: 0, // We don't have this info here
+                            } as unknown as Fish;
+                            break;
+                        }
+                    }
+
+                    if (compatibleFish && this.selectedFish) {
+                        // Calculate chances
+                        const { successChance, offspringRange, mutationChance } =
+                            this.calculateBreedingChances(this.selectedFish, compatibleFish, efficiency);
+
+                        // Only show up to 3 examples to avoid cluttering the UI
+                        if (chancesAdded < 3) {
+                            content += `
+                            <div class="breeding-chance-item">
+                                <div class="chance-fish-name ${compatibleFish.rarity}">${compatibleFish.displayName}</div>
+                                <div class="chance-details">
+                                    <div>Success: ${(successChance * 100).toFixed(0)}%</div>
+                                    <div>Offspring: ${offspringRange[0]}-${offspringRange[1]}</div>
+                                    <div>Mutation: ${(mutationChance * 100).toFixed(0)}%</div>
+                                </div>
+                            </div>
+                        `;
+                            chancesAdded++;
+                        }
+                    }
+                }
+            });
+
+            // If we have more examples than shown, add a note
+            if (compatibleFishIds.size > 3) {
+                content += `<div class="more-examples-note">${compatibleFishIds.size - 3} more compatible fish...</div>`;
+            }
+        }
+
+        // Add cancel button
+        content += `<button class="cancel-selection-button">Cancel Selection</button>`;
+        display.innerHTML = content;
 
         // Add cancel button handler
         const cancelButton = display.querySelector('.cancel-selection-button');

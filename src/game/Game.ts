@@ -50,6 +50,7 @@ export class Game {
     private breedingManager: BreedingManager;
     private abilityManager: AbilityManager;
     private statsTracker: StatsTracker;
+    private breedingTimerInterval: number | null = null;
 
     // Additional UI components
     private breedingUI: BreedingUI;
@@ -90,6 +91,21 @@ export class Game {
         // Initialize achievements
         this.initializeAchievements();
 
+        this.statsTracker.registerStatChangedCallback((statName, value) => {
+            if (this.ui.getCurrentTab() === 'stats-tab') {
+                this.updateStatsDisplay();
+            }
+        });
+
+        this.statsTracker.registerAchievementUnlockedCallback((achievement) => {
+            this.ui.showAchievementUnlocked(achievement);
+            if (this.ui.getCurrentTab() === 'stats-tab') {
+                this.updateStatsDisplay();
+            }
+        });
+
+        this.startBreedingTimerUpdates();
+
         // Initialize tab system
         this.ui.initializeTabs();
 
@@ -121,12 +137,17 @@ export class Game {
 
         // Save button
         this.ui.registerSaveHandler(() => this.saveGame());
+        this.ui.registerResetHandler(() => this.resetGame());
 
         this.ui.registerTabChangeHandler((tabId) => {
             if (tabId === 'tanks-tab') {
                 this.updateTanksUI();
             } else if (tabId === 'stats-tab') {
-                this.ui.updateStats(this.statsTracker.getAllStats());
+                this.updateStatsDisplay();
+            } else if (tabId === 'breeding-tab') {
+                this.updateBreedingUI();
+                // Immediately update timers when switching to breeding tab
+                this.breedingUI.updateBreedingTimers(this.breedingManager.getAllTanks());
             }
         });
 
@@ -169,11 +190,20 @@ export class Game {
                 this.tankManager.increaseMaxTanks(upgrade.value);
                 this.updateTanksUI();
             }
+
+            if (upgrade.type === UpgradeType.BREEDING_EFFICIENCY) {
+                const breedingEfficiency = 1 + this.upgradeManager.getTotalBonusForType(UpgradeType.BREEDING_EFFICIENCY);
+                this.breedingUI.setBreedingEfficiency(breedingEfficiency);
+            }
         });
 
         // Breeding events
         this.breedingManager.registerBreedingCompleteCallback((outcome) => {
             this.handleBreedingOutcome(outcome);
+        });
+
+        this.breedingUI.setSelectionChangedCallback(() => {
+            this.updateUI(); // Update UI when breeding selection changes
         });
 
         // Set up breeding UI callbacks
@@ -192,6 +222,22 @@ export class Game {
             }
         });
 
+        this.breedingUI.setStartBreedingCallback((fish1, fish2) => this.startBreeding(fish1, fish2));
+        this.breedingUI.setCancelBreedingCallback((tankId) => this.cancelBreeding(tankId));
+
+        this.breedingUI.setBreedingChanceCalculator((fish1, fish2, efficiency) => {
+            const successChance = this.breedingManager.calculateBreedingSuccessChance(fish1, fish2, efficiency);
+            const offspringRange = this.breedingManager.calculatePotentialOffspringRange(efficiency);
+            const mutationChance = this.breedingManager.calculateMutationChance(fish1, fish2, efficiency);
+
+            return { successChance, offspringRange, mutationChance };
+        });
+
+// Set breeding efficiency based on upgrades
+        const breedingEfficiency = 1 + this.upgradeManager.getTotalBonusForType(UpgradeType.BREEDING_EFFICIENCY);
+        this.breedingUI.setBreedingEfficiency(breedingEfficiency);
+
+
         document.addEventListener('click', (event) => {
             const target = event.target as HTMLElement;
             const fishElement = target.closest('.fish-item') as HTMLElement | null;
@@ -203,6 +249,13 @@ export class Game {
 
         // Initial UI updates
         this.updateUI();
+    }
+
+    private stopBreedingTimerUpdates(): void {
+        if (this.breedingTimerInterval !== null) {
+            window.clearInterval(this.breedingTimerInterval);
+            this.breedingTimerInterval = null;
+        }
     }
 
     /**
@@ -293,6 +346,17 @@ export class Game {
         );
 
         this.ui.updateLayerRequirements(requirements);
+    }
+
+    private updateStatsDisplay(): void {
+        // Update stats
+        this.ui.updateStats(this.statsTracker.getAllStats());
+
+        // Update achievements
+        this.ui.updateAchievements(
+            this.statsTracker.getAllAchievements(),
+            this.statsTracker.getAllStats()
+        );
     }
 
     /**
@@ -449,17 +513,38 @@ export class Game {
      * Update all UI elements
      */
     private updateUI(): void {
+        // Get fish IDs selected for breeding
+        const disabledFishIds = new Set<string>();
+        const selectedFish = this.breedingUI.getSelectedFish();
+        if (selectedFish) {
+            disabledFishIds.add(selectedFish.id);
+        }
+        if (this.breedingUI) {
+            const selectedFish = this.breedingUI.getSelectedFish();
+            if (selectedFish) {
+                disabledFishIds.add(selectedFish.id);
+            }
+        }
+        for (const tank of this.breedingManager.getAllTanks()) {
+            if (tank.breedingPair) {
+                disabledFishIds.add(tank.breedingPair.fish1.id);
+                disabledFishIds.add(tank.breedingPair.fish2.id);
+            }
+        }
+
         // Update money display
         this.ui.updateMoneyDisplay(this.economy.money);
 
         // Update depth display
         this.ui.updateDepthDisplay(this.currentDepth);
 
-        // Update inventory
+        // Update inventory with fish that can't be sold marked
         this.ui.updateInventory(
             this.inventory.getAllFish(),
             this.inventory.maxCapacity,
-            (fishId) => this.sellFish(fishId)
+            (fishId) => this.sellFish(fishId),
+            (fishId) => this.showFishDetails(fishId),
+            disabledFishIds
         );
 
         // Update upgrades
@@ -565,6 +650,26 @@ export class Game {
      * Sell a fish from inventory
      */
     private sellFish(fishId: string): void {
+        const disabledFishIds = new Set<string>();
+
+        if (this.breedingUI) {
+            const selectedFish = this.breedingUI.getSelectedFish();
+            if (selectedFish && selectedFish.id === fishId) {
+                this.ui.showNotification("Can't sell fish selected for breeding", 'error');
+                return;
+            }
+        }
+
+        // Check if fish is in a breeding tank
+        for (const tank of this.breedingManager.getAllTanks()) {
+            if (tank.breedingPair) {
+                if (tank.breedingPair.fish1.id === fishId || tank.breedingPair.fish2.id === fishId) {
+                    this.ui.showNotification("Can't sell fish that is currently breeding", 'error');
+                    return;
+                }
+            }
+        }
+
         const fish = this.inventory.removeFish(fishId);
 
         if (fish) {
@@ -806,6 +911,32 @@ export class Game {
         return success;
     }
 
+    async resetGame(): Promise<void> {
+        // Show confirmation dialog
+        if (!confirm("Are you sure you want to reset the game? All progress will be lost!")) {
+            return;
+        }
+
+        this.stopBreedingTimerUpdates();
+
+        // Delete save data
+        const success = await SaveManager.deleteSaveData();
+
+        if (success) {
+            this.ui.showNotification('Game reset successfully. Refreshing...', 'info');
+
+            // Set a flag in localStorage to indicate we're resetting
+            localStorage.setItem('deepSeasResetting', 'true');
+
+            // Refresh the page after a short delay
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else {
+            this.ui.showNotification('Failed to reset game.', 'error');
+        }
+    }
+
     private handleBreedingFishSelection(fish: Fish): void {
         // Show breeding UI
         const breedingContainer = document.getElementById('breeding-area');
@@ -829,6 +960,21 @@ export class Game {
                 }
             }
         }, 100);
+    }
+
+    private startBreedingTimerUpdates(): void {
+        // Clear any existing interval
+        if (this.breedingTimerInterval !== null) {
+            window.clearInterval(this.breedingTimerInterval);
+        }
+
+        // Start new interval that updates every second
+        this.breedingTimerInterval = window.setInterval(() => {
+            // Only update if on breeding tab
+            if (this.ui.getCurrentTab() === 'breeding-tab') {
+                this.breedingUI.updateBreedingTimers(this.breedingManager.getAllTanks());
+            }
+        }, 1000); // Update every second
     }
 
 
@@ -873,6 +1019,14 @@ export class Game {
      * Load the game
      */
     async loadGame(): Promise<void> {
+        // Check if we're coming from a reset
+        if (localStorage.getItem('deepSeasResetting') === 'true') {
+            // Clear the reset flag
+            localStorage.removeItem('deepSeasResetting');
+            this.ui.showNotification('Starting new game.', 'info');
+            return;
+        }
+
         // Load using save manager
         const saveData = await SaveManager.loadGame() as any;
 

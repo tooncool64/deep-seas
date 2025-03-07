@@ -134,6 +134,87 @@ export class BreedingManager {
     }
 
     /**
+     * Calculate the chance of successful breeding for a pair of fish
+     * @returns Value between 0-1 representing success chance
+     */
+    calculateBreedingSuccessChance(fish1: Fish, fish2: Fish, breedingEfficiency: number = 1): number {
+        // Base chance is higher for more similar fish
+        let baseChance = 0.7; // Default 70% chance
+
+        // Same species increases chance significantly
+        if (fish1.speciesId === fish2.speciesId) {
+            baseChance += 0.2; // +20% for same species
+        }
+
+        // Similar depth preferences increase chance
+        const depthDifference = Math.abs(fish1.caughtDepth - fish2.caughtDepth);
+        const maxDepthDiff = 100; // Consider depths within 100m as "close"
+        if (depthDifference < maxDepthDiff) {
+            baseChance += 0.1 * (1 - depthDifference / maxDepthDiff); // Up to +10% for similar depths
+        }
+
+        // Higher rarity reduces chance slightly
+        const rarityValues = {
+            'common': 0,
+            'uncommon': 1,
+            'rare': 2,
+            'legendary': 3,
+            'mythic': 4
+        };
+
+        const averageRarity = (rarityValues[fish1.rarity] + rarityValues[fish2.rarity]) / 2;
+        const rarityPenalty = 0.02 * averageRarity; // Up to -8% for mythic pairs
+
+        // Breeding efficiency bonus
+        const efficiencyBonus = 0.05 * (breedingEfficiency - 1); // +5% per efficiency point above 1
+
+        // Calculate final chance, ensure it's between 0-1
+        const finalChance = Math.min(1, Math.max(0, baseChance - rarityPenalty + efficiencyBonus));
+
+        return finalChance;
+    }
+
+    /**
+     * Calculate potential offspring count range based on breeding efficiency
+     */
+    calculatePotentialOffspringRange(breedingEfficiency: number = 1): [number, number] {
+        const baseOffspringCount = 1;
+        const maxExtraOffspring = Math.floor(breedingEfficiency);
+
+        return [baseOffspringCount, baseOffspringCount + maxExtraOffspring];
+    }
+
+    /**
+     * Calculate chance of mutation based on parent fish
+     */
+    calculateMutationChance(fish1: Fish, fish2: Fish, breedingEfficiency: number = 1): number {
+        const rarityValues = {
+            'common': 0,
+            'uncommon': 1,
+            'rare': 2,
+            'legendary': 3,
+            'mythic': 4
+        };
+
+        // Higher rarity has higher chance of mutation
+        const highestRarity = Math.max(rarityValues[fish1.rarity], rarityValues[fish2.rarity]);
+
+        let mutationChance = 0;
+        switch (highestRarity) {
+            case 0: mutationChance = 0.05; break; // 5% for commons
+            case 1: mutationChance = 0.08; break; // 8% for uncommons
+            case 2: mutationChance = 0.12; break; // 12% for rares
+            case 3: mutationChance = 0.15; break; // 15% for legendaries
+            case 4: mutationChance = 0.18; break; // 18% for mythics
+        }
+
+        // Breeding efficiency increases mutation chance
+        const efficiencyBonus = 0.02 * (breedingEfficiency - 1); // +2% per efficiency point
+
+        return Math.min(0.5, mutationChance + efficiencyBonus); // Cap at 50%
+    }
+
+    /**
      * Increase the number of available breeding tanks
      */
     increaseMaxTanks(amount: number): void {

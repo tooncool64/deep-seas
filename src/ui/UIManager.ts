@@ -98,7 +98,14 @@ export class UIManager {
     /**
      * Update inventory display
      */
-    updateInventory(fish: Fish[], inventoryCapacity: number, sellHandler: (fishId: string) => void): void {
+    // Add optional parameter to the method signature
+    updateInventory(
+        fish: Fish[],
+        inventoryCapacity: number,
+        sellHandler: (fishId: string) => void,
+        viewDetailsHandler?: (fishId: string) => void,
+        disabledFishIds: Set<string> = new Set() // Add this parameter
+    ): void {
         // Clear existing slots
         this.inventorySlots.innerHTML = '';
 
@@ -112,27 +119,57 @@ export class UIManager {
                 const currentFish = fish[i];
                 slot.classList.add('filled');
 
+                // Check if this fish is disabled (selected for breeding)
+                const isDisabled = disabledFishIds.has(currentFish.id);
+
                 // Create fish display
                 const fishElement = document.createElement('div');
                 fishElement.className = `fish-item ${currentFish.rarity}`;
+                fishElement.dataset.fishId = currentFish.id;
+
                 fishElement.innerHTML = `
-          <div class="fish-name">${currentFish.displayName}</div>
-          <div class="fish-details">
-            <div>${currentFish.weight}kg</div>
-            <div>$${currentFish.value}</div>
-          </div>
-        `;
+                <div class="fish-name">${currentFish.displayName}</div>
+                <div class="fish-details">
+                    <div>${currentFish.weight}kg</div>
+                    <div>$${currentFish.value}</div>
+                </div>
+            `;
+
+                // Create button container
+                const buttonContainer = document.createElement('div');
+                buttonContainer.className = 'fish-button-container';
+
+                // Create details button if handler provided
+                if (viewDetailsHandler) {
+                    const detailsButton = document.createElement('button');
+                    detailsButton.className = 'details-button';
+                    detailsButton.textContent = 'Details';
+                    detailsButton.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        viewDetailsHandler(currentFish.id);
+                    });
+                    buttonContainer.appendChild(detailsButton);
+                }
 
                 // Create sell button
                 const sellButton = document.createElement('button');
                 sellButton.className = 'sell-button';
+                if (isDisabled) {
+                    sellButton.classList.add('disabled');
+                    sellButton.disabled = true;
+                    sellButton.title = "Can't sell - selected for breeding";
+                }
                 sellButton.textContent = 'Sell';
-                sellButton.addEventListener('click', () => {
-                    sellHandler(currentFish.id);
+                sellButton.addEventListener('click', (e) => {
+                    if (!isDisabled) {
+                        e.stopPropagation();
+                        sellHandler(currentFish.id);
+                    }
                 });
+                buttonContainer.appendChild(sellButton);
 
-                // Add to slot
-                fishElement.appendChild(sellButton);
+                // Add button container to fish element
+                fishElement.appendChild(buttonContainer);
                 slot.appendChild(fishElement);
             } else {
                 // Empty slot
@@ -451,6 +488,13 @@ export class UIManager {
         });
     }
 
+    registerResetHandler(handler: () => void): void {
+        const resetButton = document.getElementById('reset-game');
+        if (resetButton) {
+            resetButton.addEventListener('click', handler);
+        }
+    }
+
     /**
      * Initialize layer transition system
      */
@@ -537,6 +581,67 @@ export class UIManager {
         if (descendButton) {
             descendButton.disabled = completedCount < requirements.length;
         }
+    }
+
+    /**
+     * Update achievements display
+     */
+    updateAchievements(
+        achievements: Achievement[],
+        stats: Map<string, number>
+    ): void {
+        // Get achievements container
+        const achievementsContainer = document.getElementById('achievements-container');
+        if (!achievementsContainer) return;
+
+        // Clear existing content
+        achievementsContainer.innerHTML = '';
+
+        // Create achievement cards
+        for (const achievement of achievements) {
+            // Create card element
+            const card = document.createElement('div');
+            card.className = `achievement-card ${achievement.isUnlocked ? 'unlocked' : 'locked'}`;
+
+            // Get requirement details
+            const requirementDesc = achievement.getRequirementsDescription();
+            const [statName, requiredValue] = requirementDesc.split(': ');
+
+            // Get current value for progress
+            const currentValue = stats.get(statName.toLowerCase().replace(/\s/g, '')) || 0;
+            const reqValue = parseInt(requiredValue);
+
+            // Calculate progress percentage
+            const progressPercent = Math.min(100, (currentValue / reqValue) * 100);
+
+            // Create card content
+            card.innerHTML = `
+            <div class="achievement-header">
+                <div class="achievement-title">${achievement.name}</div>
+                <div class="achievement-status ${achievement.isUnlocked ? 'unlocked' : 'locked'}">
+                    ${achievement.isUnlocked ? 'Achieved' : 'Locked'}
+                </div>
+            </div>
+            <div class="achievement-description">${achievement.description}</div>
+            <div class="achievement-goal">
+                <span>${statName}</span>
+                <div class="achievement-progress">
+                    <div class="achievement-progress-fill" style="width: ${progressPercent}%"></div>
+                </div>
+                <span>${currentValue}/${requiredValue}</span>
+            </div>
+            ${achievement.isUnlocked ?
+                `<div class="achievement-reward">Unlocked: ${achievement.unlockedAt ? achievement.unlockedAt.toLocaleDateString() : 'N/A'}</div>` : ''}
+        `;
+
+            // Add to container
+            achievementsContainer.appendChild(card);
+        }
+    }
+
+    getCurrentTab(): string | null {
+        const activeTab = document.querySelector('.tab-content.active');
+        return activeTab ? activeTab.id : null;
     }
 
     /**

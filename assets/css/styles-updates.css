@@ -802,3 +802,131 @@
     0% { transform: translateY(0) scale(1); opacity: 1; }
     100% { transform: translateY(100px) scale(0.2); opacity: 0; }
 }
+
+/* Achievement styles */
+.achievements-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.achievement-card {
+    background-color: #f5f5f5;
+    border-radius: 8px;
+    padding: 15px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.achievement-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.achievement-card.unlocked {
+    background-color: #e8f5e9;
+    border-left: 4px solid #4caf50;
+}
+
+.achievement-card.locked {
+    opacity: 0.8;
+    border-left: 4px solid #bdbdbd;
+}
+
+.achievement-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.achievement-title {
+    font-weight: bold;
+    font-size: 1.1em;
+    color: #455a64;
+}
+
+.achievement-status {
+    font-size: 0.8em;
+    padding: 3px 8px;
+    border-radius: 4px;
+}
+
+.achievement-status.unlocked {
+    background-color: #4caf50;
+    color: white;
+}
+
+.achievement-status.locked {
+    background-color: #f5f5f5;
+    border: 1px solid #bdbdbd;
+    color: #757575;
+}
+
+.achievement-description {
+    color: #546e7a;
+    margin-bottom: 10px;
+}
+
+.achievement-goal {
+    display: flex;
+    align-items: center;
+    font-size: 0.9em;
+}
+
+.achievement-progress {
+    flex: 1;
+    height: 8px;
+    background-color: #e0e0e0;
+    border-radius: 4px;
+    margin: 0 10px;
+    overflow: hidden;
+}
+
+.achievement-progress-fill {
+    height: 100%;
+    background-color: #2196f3;
+    transition: width 0.5s ease;
+}
+
+.achievement-reward {
+    margin-top: 10px;
+    font-size: 0.9em;
+    color: #558b2f;
+    font-style: italic;
+}
+
+/* Add to assets/css/styles-updates.css */
+.breeding-chances-header {
+    margin-top: 15px;
+    font-weight: bold;
+    color: #0277bd;
+}
+
+.breeding-chance-item {
+    margin-top: 10px;
+    padding: 10px;
+    background-color: #f5f5f5;
+    border-radius: 4px;
+}
+
+.chance-fish-name {
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.chance-details {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.9em;
+    color: #546e7a;
+}
+
+.more-examples-note {
+    font-size: 0.9em;
+    font-style: italic;
+    text-align: center;
+    margin-top: 10px;
+    color: #757575;
+}

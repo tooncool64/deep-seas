@@ -61,3 +61,19 @@ ipcMain.handle('load-game', async () => {
 
     return { success: false, data: null };
 });
+
+ipcMain.handle('delete-save', async () => {
+    const savePath = path.join(app.getPath('userData'), 'saveData.json');
+
+    if (fs.existsSync(savePath)) {
+        try {
+            fs.unlinkSync(savePath);
+            return { success: true };
+        } catch (error) {
+            console.error('Error deleting save file:', error);
+            return { success: false };
+        }
+    }
+
+    return { success: true }; // No file to delete is still a success
+});
