@@ -89,6 +89,86 @@ export const DEEP_SEA_FISH: FishSpecies[] = [
         minDepth: 400,
         maxDepth: 900,
         weight: { min: 2, max: 25 }
+    },
+    {
+        id: 'dumbo_octopus',
+        name: 'Dumbo Octopus',
+        baseValue: 70,
+        minDepth: 1000,
+        maxDepth: 2000,
+        weight: { min: 10, max: 50 }
+    },
+    {
+        id: 'vampire_squid',
+        name: 'Vampire Squid',
+        baseValue: 65,
+        minDepth: 600,
+        maxDepth: 1200,
+        weight: { min: 5, max: 15 }
+    },
+    {
+        id: 'deep_sea_dragonfish',
+        name: 'Deep Sea Dragonfish',
+        baseValue: 55,
+        minDepth: 200,
+        maxDepth: 1500,
+        weight: { min: 0.5, max: 5 }
+    },
+    {
+        id: 'blob_fish',
+        name: 'Blob Fish',
+        baseValue: 45,
+        minDepth: 600,
+        maxDepth: 1800,
+        weight: { min: 2, max: 10 }
+    },
+    {
+        id: 'lanternfish',
+        name: 'Lanternfish',
+        baseValue: 30,
+        minDepth: 100,
+        maxDepth: 1000,
+        weight: { min: 0.1, max: 1 }
+    },
+    {
+        id: 'yeti_crab',
+        name: 'Yeti Crab',
+        baseValue: 60,
+        minDepth: 1500,
+        maxDepth: 2000,
+        weight: { min: 1, max: 5 }
+    },
+    {
+        id: 'colossal_squid',
+        name: 'Colossal Squid',
+        baseValue: 90,
+        minDepth: 800,
+        maxDepth: 1600,
+        weight: { min: 100, max: 500 }
+    },
+    {
+        id: 'abyssal_anglerfish',
+        name: 'Abyssal Anglerfish',
+        baseValue: 75,
+        minDepth: 1000,
+        maxDepth: 1900,
+        weight: { min: 5, max: 20 }
+    },
+    {
+        id: 'deep_sea_chimera',
+        name: 'Deep Sea Chimera',
+        baseValue: 65,
+        minDepth: 500,
+        maxDepth: 1700,
+        weight: { min: 10, max: 40 }
+    },
+    {
+        id: 'glass_squid',
+        name: 'Glass Squid',
+        baseValue: 50,
+        minDepth: 200,
+        maxDepth: 1300,
+        weight: { min: 0.5, max: 3 }
     }
 ];
 
