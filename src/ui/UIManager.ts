@@ -398,4 +398,170 @@ export class UIManager {
         }
     }
 
+    /**
+     * Initialize tab system
+     */
+    initializeTabs(): void {
+        // Get all tab buttons
+        const tabButtons = document.querySelectorAll('.tab-button');
+
+        // Add click handler to each tab button
+        tabButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const tabId = (button as HTMLElement).dataset.tab;
+                this.switchToTab(tabId as string);
+            });
+        });
+    }
+
+    /**
+     * Switch to a specific tab
+     */
+    switchToTab(tabId: string): void {
+        // Remove active class from all tabs and buttons
+        const allTabs = document.querySelectorAll('.tab-content');
+        const allButtons = document.querySelectorAll('.tab-button');
+
+        allTabs.forEach(tab => tab.classList.remove('active'));
+        allButtons.forEach(button => button.classList.remove('active'));
+
+        // Add active class to selected tab and button
+        const selectedTab = document.getElementById(tabId);
+        const selectedButton = document.querySelector(`.tab-button[data-tab="${tabId}"]`);
+
+        if (selectedTab) {
+            selectedTab.classList.add('active');
+        }
+
+        if (selectedButton) {
+            selectedButton.classList.add('active');
+        }
+    }
+
+    registerTabChangeHandler(handler: (tabId: string) => void): void {
+        const tabButtons = document.querySelectorAll('.tab-button');
+
+        tabButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const tabId = (button as HTMLElement).dataset.tab;
+                if (tabId) {
+                    handler(tabId);
+                }
+            });
+        });
+    }
+
+    /**
+     * Initialize layer transition system
+     */
+    initializeLayerTransition(
+        currentLayer: string,
+        nextLayer: string,
+        requirements: {id: string, description: string, isComplete: boolean}[],
+        checkRequirementsHandler: () => boolean,
+        descendHandler: () => void
+    ): void {
+        // Update layer display
+        const currentLayerElement = document.querySelector('.current-layer .layer-name');
+        const nextLayerElement = document.querySelector('.next-layer .layer-name');
+
+        if (currentLayerElement) {
+            currentLayerElement.textContent = currentLayer;
+        }
+
+        if (nextLayerElement) {
+            nextLayerElement.textContent = nextLayer;
+        }
+
+        // Update requirements list
+        this.updateLayerRequirements(requirements);
+
+        // Set up descend button
+        const descendButton = document.getElementById('descend-button');
+        if (descendButton) {
+            descendButton.addEventListener('click', () => {
+                if (checkRequirementsHandler()) {
+                    this.showLayerTransitionAnimation(currentLayer, nextLayer);
+                    descendHandler();
+                }
+            });
+        }
+    }
+
+    /**
+     * Update layer transition requirements
+     */
+    updateLayerRequirements(requirements: {id: string, description: string, isComplete: boolean}[]): void {
+        const requirementsList = document.querySelector('.requirement-list');
+        if (!requirementsList) return;
+
+        // Clear existing items
+        requirementsList.innerHTML = '';
+
+        // Add each requirement
+        let completedCount = 0;
+
+        for (const req of requirements) {
+            const item = document.createElement('li');
+            item.className = 'requirement-item';
+            item.innerHTML = `
+            <div class="requirement-status ${req.isComplete ? 'completed' : 'incomplete'}">✓</div>
+            <div>${req.description}</div>
+        `;
+
+            requirementsList.appendChild(item);
+
+            if (req.isComplete) {
+                completedCount++;
+            }
+        }
+
+        // Update progress bar
+        const progressPercent = requirements.length > 0
+            ? (completedCount / requirements.length) * 100
+            : 0;
+
+        const progressFill = document.querySelector('.progress-fill') as HTMLElement;
+        const progressText = document.querySelector('.progress-text');
+
+        if (progressFill) {
+            progressFill.style.width = `${progressPercent}%`;
+        }
+
+        if (progressText) {
+            progressText.textContent = `${Math.round(progressPercent)}%`;
+        }
+
+        // Enable/disable descend button
+        const descendButton = document.getElementById('descend-button') as HTMLButtonElement;
+        if (descendButton) {
+            descendButton.disabled = completedCount < requirements.length;
+        }
+    }
+
+    /**
+     * Show layer transition animation
+     */
+    showLayerTransitionAnimation(fromLayer: string, toLayer: string): void {
+        // Create transition overlay
+        const overlay = document.createElement('div');
+        overlay.className = 'layer-transition-overlay';
+
+        overlay.innerHTML = `
+        <div class="transition-title">Descending to ${toLayer}</div>
+        <div class="transition-message">
+            You are leaving the ${fromLayer} and entering the mysterious depths of the ${toLayer}.
+            New fish species and challenges await!
+        </div>
+        <div class="transition-animation"></div>
+    `;
+
+        // Add to DOM
+        document.body.appendChild(overlay);
+
+        // Remove after animation completes
+        setTimeout(() => {
+            document.body.removeChild(overlay);
+        }, 3000);
+    }
 }

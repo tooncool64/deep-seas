@@ -118,6 +118,126 @@ export const SURFACE_FISH = [
         minDepth: 20,
         maxDepth: 50,
         weight: { min: 3, max: 12 }
+    },
+    {
+        id: 'perch',
+        name: 'Perch',
+        baseValue: 6,
+        minDepth: 2,
+        maxDepth: 25,
+        weight: { min: 0.5, max: 2.5 }
+    },
+    {
+        id: 'herring',
+        name: 'Herring',
+        baseValue: 4,
+        minDepth: 0,
+        maxDepth: 35,
+        weight: { min: 0.1, max: 0.5 }
+    },
+    {
+        id: 'mackerel',
+        name: 'Mackerel',
+        baseValue: 7,
+        minDepth: 5,
+        maxDepth: 45,
+        weight: { min: 0.5, max: 3 }
+    },
+    {
+        id: 'bluegill',
+        name: 'Bluegill',
+        baseValue: 3,
+        minDepth: 0,
+        maxDepth: 10,
+        weight: { min: 0.2, max: 1.5 }
+    },
+    {
+        id: 'pike',
+        name: 'Pike',
+        baseValue: 10,
+        minDepth: 10,
+        maxDepth: 30,
+        weight: { min: 1.5, max: 6 }
+    },
+    {
+        id: 'whitefish',
+        name: 'Whitefish',
+        baseValue: 5,
+        minDepth: 15,
+        maxDepth: 40,
+        weight: { min: 1, max: 4 }
+    },
+    {
+        id: 'carp',
+        name: 'Carp',
+        baseValue: 6,
+        minDepth: 5,
+        maxDepth: 25,
+        weight: { min: 2, max: 7 }
+    },
+    {
+        id: 'crappie',
+        name: 'Crappie',
+        baseValue: 4,
+        minDepth: 3,
+        maxDepth: 20,
+        weight: { min: 0.3, max: 2 }
+    },
+    {
+        id: 'barracuda',
+        name: 'Barracuda',
+        baseValue: 18,
+        minDepth: 10,
+        maxDepth: 50,
+        weight: { min: 2, max: 10 }
+    },
+    {
+        id: 'anchovy',
+        name: 'Anchovy',
+        baseValue: 2,
+        minDepth: 0,
+        maxDepth: 30,
+        weight: { min: 0.05, max: 0.2 }
+    },
+    {
+        id: 'rainbow-trout',
+        name: 'Rainbow Trout',
+        baseValue: 7,
+        minDepth: 5,
+        maxDepth: 35,
+        weight: { min: 1, max: 5 }
+    },
+    {
+        id: 'walleye',
+        name: 'Walleye',
+        baseValue: 9,
+        minDepth: 15,
+        maxDepth: 40,
+        weight: { min: 1.5, max: 6 }
+    },
+    {
+        id: 'arapaima',
+        name: 'Arapaima',
+        baseValue: 13,
+        minDepth: 50,
+        maxDepth: 50,
+        weight: { min: 50, max: 200 },
+    },
+    {
+        id: 'megamouth-shark',
+        name: 'Megamouth Shark',
+        baseValue: 18,
+        minDepth: 50,
+        maxDepth: 50,
+        weight: { min: 500, max: 1000 },
+    },
+    {
+        id: 'coelacanth',
+        name: 'Coelacanth',
+        baseValue: 25,
+        minDepth: 50,
+        maxDepth: 50,
+        weight: { min: 30, max: 90 },
     }
 ];
 
@@ -269,3 +389,56 @@ export const INITIAL_ACHIEVEMENTS = [
         reward: { money: 50 }
     }
 ];
+
+// Layer Unlock Requirements
+export interface LayerRequirement {
+    id: string;
+    description: string;
+    checkFunction: (gameState: any) => boolean;
+}
+
+// Define a type for the layer requirements mapping
+export type LayerRequirementMap = {
+    [key in DepthLayer]?: LayerRequirement[];
+};
+
+export const LAYER_REQUIREMENTS: LayerRequirementMap = {
+    [DepthLayer.DEEP_SEA]: [
+        {
+            id: 'fish_species',
+            description: 'Catch at least 20 different fish species',
+            checkFunction: (gameState: any) => {
+                // Count unique species caught
+                const uniqueSpecies = new Set<string>();
+                for (const fish of gameState.inventory.getAllFish()) {
+                    uniqueSpecies.add(fish.speciesId);
+                }
+
+                // Also check fish in tanks
+                if (gameState.tankManager) {
+                    for (const fishInTank of gameState.tankManager.getAllFishInTanks()) {
+                        uniqueSpecies.add(fishInTank.speciesId);
+                    }
+                }
+
+                return uniqueSpecies.size >= 5; // Lowered for testing, would be 20 in production
+            }
+        },
+        {
+            id: 'pressure_gear',
+            description: 'Purchase Deep Sea Pressure Gear upgrade',
+            checkFunction: (gameState: any) => {
+                // Check if the pressure gear upgrade has been purchased
+                const pressureGearLevel = gameState.upgradeManager.getTotalBonusForType(UpgradeType.PRESSURE_RESISTANCE);
+                return pressureGearLevel > 0;
+            }
+        },
+        {
+            id: 'fishing_power',
+            description: 'Reach a fishing power of at least 5',
+            checkFunction: (gameState: any) => {
+                return gameState.fishingPower >= 5;
+            }
+        }
+    ]
+};

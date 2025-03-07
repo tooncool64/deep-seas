@@ -1,4 +1,4 @@
-import { DepthLayer } from '../../utils/Constants';
+import {DepthLayer, LAYER_REQUIREMENTS, LayerRequirement} from '../../utils/Constants';
 import { FishManager } from '../fish/FishManager';
 import { SurfaceLayer } from './SurfaceLayer';
 
@@ -132,6 +132,69 @@ export class LayerManager {
      */
     addLayer(layer: Layer): void {
         this.layers.set(layer.id, layer);
+    }
+
+    /**
+     * Check if all requirements are met for a layer
+     */
+    checkLayerRequirements(layerId: string, gameState: any): boolean {
+        // Get requirements for the layer
+        const requirements = LAYER_REQUIREMENTS[layerId as DepthLayer];
+
+        if (!requirements) {
+            return false;
+        }
+
+        // Check if all requirements are met
+        for (const req of requirements) {
+            if (!req.checkFunction(gameState)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Get requirement status for a layer
+     */
+    getLayerRequirementStatus(layerId: string, gameState: any): {id: string, description: string, isComplete: boolean}[] {
+        // Get requirements for the layer
+        const requirements = LAYER_REQUIREMENTS[layerId as DepthLayer];
+
+        if (!requirements) {
+            return [];
+        }
+
+        // Check status of each requirement
+        return requirements.map((req: LayerRequirement) => ({
+            id: req.id,
+            description: req.description,
+            isComplete: req.checkFunction(gameState)
+        }));
+    }
+
+    /**
+     * Transition to the next layer
+     * @param layerId ID of the layer to transition to
+     * @returns true if transition was successful
+     */
+    transitionToLayer(layerId: string): boolean {
+        const layer = this.getLayer(layerId);
+
+        if (!layer) {
+            return false;
+        }
+
+        // Unlock the layer
+        if (!this.unlockLayer(layerId)) {
+            return false;
+        }
+
+        // Set as active layer
+        this.setActiveLayer(layerId);
+
+        return true;
     }
 
     /**

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Deep Seas: An Incremental Fishing Adventure</title>
     <link rel="stylesheet" href="assets/css/styles.css">
+    <link rel="stylesheet" href="assets/css/styles-updates.css">
 </head>
 <body>
 <div id="game-container">
@@ -15,29 +16,122 @@
         </div>
     </div>
 
-    <div id="game-area">
-        <div id="fishing-area">
-            <div id="depth-meter">
-                <div id="current-depth">0m</div>
+    <div class="tab-container">
+        <div class="tab-navigation">
+            <button class="tab-button active" data-tab="fishing-tab">Fishing</button>
+            <button class="tab-button" data-tab="tanks-tab">Tanks</button>
+            <button class="tab-button" data-tab="breeding-tab">Breeding</button>
+            <button class="tab-button" data-tab="stats-tab">Stats</button>
+        </div>
+
+        <div id="fishing-tab" class="tab-content active">
+            <div id="game-area">
+                <div id="fishing-area">
+                    <div id="depth-meter">
+                        <div id="current-depth">0m</div>
+                    </div>
+                    <div id="fishing-animation"></div>
+                    <button id="cast-line">Cast Line</button>
+
+                    <!-- Layer transition container -->
+                    <div class="layer-transition-container">
+                        <h3>Ocean Layers</h3>
+                        <div class="layer-info">
+                            <div class="current-layer">
+                                <div class="layer-name">Surface</div>
+                                <div class="layer-depth">0-50m</div>
+                            </div>
+                            <div class="layer-arrow">→</div>
+                            <div class="next-layer">
+                                <div class="layer-name">Deep Sea</div>
+                                <div class="layer-depth">50-1000m</div>
+                            </div>
+                        </div>
+
+                        <div class="layer-progress">
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: 0%"></div>
+                                <div class="progress-text">0%</div>
+                            </div>
+                        </div>
+
+                        <div class="unlock-requirements">
+                            <div class="requirement-title">Requirements to unlock Deep Sea:</div>
+                            <ul class="requirement-list">
+                                <li class="requirement-item">
+                                    <div class="requirement-status incomplete">✓</div>
+                                    <div>Catch at least 20 different fish species</div>
+                                </li>
+                                <li class="requirement-item">
+                                    <div class="requirement-status incomplete">✓</div>
+                                    <div>Purchase Deep Sea Pressure Gear upgrade</div>
+                                </li>
+                                <li class="requirement-item">
+                                    <div class="requirement-status incomplete">✓</div>
+                                    <div>Reach a fishing power of at least 5</div>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <button id="descend-button" class="descend-button" disabled>Descend to Deep Sea</button>
+                    </div>
+                </div>
+
+                <div id="inventory">
+                    <h2>Inventory</h2>
+                    <div id="inventory-slots"></div>
+                </div>
+
+                <div id="shop">
+                    <h2>Upgrades</h2>
+                    <div id="upgrade-list"></div>
+                </div>
             </div>
-            <div id="fishing-animation"></div>
-            <button id="cast-line">Cast Line</button>
         </div>
 
-        <div id="inventory">
-            <h2>Inventory</h2>
-            <div id="inventory-slots"></div>
+        <div id="tanks-tab" class="tab-content">
+            <h2>Fish Tanks</h2>
+            <p>Place your fish in tanks to activate their passive abilities.</p>
+
+            <div class="fish-tanks-container" id="fish-tanks-container">
+                <!-- Fish tanks will be added here dynamically -->
+            </div>
+
+            <h3>Available Fish</h3>
+            <div id="available-fish-container">
+                <!-- Available fish will be displayed here -->
+            </div>
         </div>
 
-        <div id="shop">
-            <h2>Upgrades</h2>
-            <div id="upgrade-list"></div>
+        <div id="breeding-tab" class="tab-content">
+            <div id="breeding-area" class="breeding-area">
+                <h2>Breeding</h2>
+                <div class="breeding-tanks-container">
+                    <!-- Breeding tanks will be added here dynamically -->
+                </div>
+
+                <div class="breeding-selection-panel">
+                    <h3>Select Fish for Breeding</h3>
+                    <p>Select two compatible fish to place in a breeding tank.</p>
+                    <div class="breeding-selection-container">
+                        <!-- Fish selection options will be added here dynamically -->
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <!-- Breeding area will be dynamically added when unlocked -->
+        <div id="stats-tab" class="tab-content">
+            <h2>Statistics</h2>
+            <div id="stats-container" class="stats-container">
+                <!-- Stats will be added here dynamically -->
+            </div>
+
+            <h2>Achievements</h2>
+            <div id="achievements-container">
+                <!-- Achievements will be added here dynamically -->
+            </div>
+        </div>
     </div>
-
-    <!-- Stats container will be dynamically added -->
 
     <div id="footer">
         <button id="save-game">Save Game</button>

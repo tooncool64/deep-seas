@@ -19,6 +19,8 @@ export class AbilityManager {
     // Currently active ability buffs
     private activeBuffs: Map<string, number> = new Map();
 
+    private fishInTanks: Map<string, boolean> = new Map();
+
     // Event callbacks
     private onAbilityActivated: ((ability: FishAbility) => void)[] = [];
     private onAbilityDeactivated: ((ability: FishAbility) => void)[] = [];
@@ -83,15 +85,12 @@ export class AbilityManager {
         this.abilities.set(abilityId, ability);
         this.abilityFish.set(fish.id, abilityId);
 
-        // Activate passive abilities automatically
-        if (ability.isPassive) {
-            ability.activate();
-            this.notifyAbilityActivated(ability);
-            this.updateBuffsFromAbilities();
-        }
+        // Do NOT activate passive abilities automatically anymore
+        // This will only happen when the fish is placed in a tank
 
         return abilityId;
     }
+
 
     /**
      * Create an appropriate ability for a fish based on species and rarity
@@ -415,6 +414,40 @@ export class AbilityManager {
     }
 
     /**
+     * Set a fish as being in a tank
+     */
+    setFishInTank(fishId: string, inTank: boolean): void {
+        this.fishInTanks.set(fishId, inTank);
+
+        // If there's an ability for this fish, update its activation state
+        const abilityId = this.abilityFish.get(fishId);
+        if (abilityId) {
+            const ability = this.abilities.get(abilityId);
+            if (ability && ability.isPassive) {
+                if (inTank) {
+                    // Activate if in tank
+                    ability.activate();
+                    this.notifyAbilityActivated(ability);
+                } else {
+                    // Deactivate if removed from tank
+                    ability.deactivate();
+                    this.notifyAbilityDeactivated(ability);
+                }
+
+                // Update buffs
+                this.updateBuffsFromAbilities();
+            }
+        }
+    }
+
+    /**
+     * Check if a fish is in a tank
+     */
+    isFishInTank(fishId: string): boolean {
+        return this.fishInTanks.get(fishId) || false;
+    }
+
+    /**
      * Serialize ability manager for saving
      */
     serialize(): object {
@@ -427,7 +460,8 @@ export class AbilityManager {
         return {
             abilities: serializedAbilities,
             abilityFish: Object.fromEntries(this.abilityFish),
-            activeBuffs: Object.fromEntries(this.activeBuffs)
+            activeBuffs: Object.fromEntries(this.activeBuffs),
+            fishInTanks: Object.fromEntries(this.fishInTanks)
         };
     }
 
@@ -446,6 +480,12 @@ export class AbilityManager {
         if (data.abilityFish) {
             for (const [fishId, abilityId] of Object.entries(data.abilityFish)) {
                 this.abilityFish.set(fishId, abilityId as string);
+            }
+        }
+
+        if (data.fishInTanks) {
+            for (const [fishId, inTank] of Object.entries(data.fishInTanks)) {
+                this.fishInTanks.set(fishId, inTank === true);
             }
         }
 

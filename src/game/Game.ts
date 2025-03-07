@@ -17,6 +17,9 @@ import { FishDetailsUI } from '../ui/FishDetailsUI';
 import { Achievement } from './stats/Achievement';
 import { INITIAL_ACHIEVEMENTS } from '../utils/Constants';
 import {BreedingOutcome} from "./breeding/BreedingOutcome";
+import { FishTankManager } from './tanks/FishTankManager';
+import { FishTankUI } from '../ui/FishTankUI';
+import {FishAbility} from "./abilities/FishAbility";
 
 /**
  * Main game controller class
@@ -29,6 +32,8 @@ export class Game {
     private upgradeManager: UpgradeManager;
     private layerManager: LayerManager;
     private ui: UIManager;
+    private tankManager: FishTankManager;
+    private tankUI: FishTankUI;
 
     // Game state
     private currentDepth: number = 0;
@@ -76,8 +81,20 @@ export class Game {
         this.breedingUI = new BreedingUI();
         this.fishDetailsUI = new FishDetailsUI();
 
+        this.tankManager = new FishTankManager();
+        this.tankUI = new FishTankUI();
+        this.tankUI.setAddToTankCallback((fish, tankId) => this.addFishToTank(fish, tankId));
+        this.tankUI.setRemoveFromTankCallback((tankId) => this.removeFishFromTank(tankId));
+        this.tankUI.setViewFishDetailsCallback((fishId) => this.showFishDetails(fishId));
+
         // Initialize achievements
         this.initializeAchievements();
+
+        // Initialize tab system
+        this.ui.initializeTabs();
+
+        // Initialize layer transition system
+        this.initializeLayerTransitionSystem();
 
         // Start game loop
         this.startGameLoop();
@@ -104,6 +121,14 @@ export class Game {
 
         // Save button
         this.ui.registerSaveHandler(() => this.saveGame());
+
+        this.ui.registerTabChangeHandler((tabId) => {
+            if (tabId === 'tanks-tab') {
+                this.updateTanksUI();
+            } else if (tabId === 'stats-tab') {
+                this.ui.updateStats(this.statsTracker.getAllStats());
+            }
+        });
 
         // Economy events
         this.economy.registerMoneyChangedCallback((money) => {
@@ -138,6 +163,11 @@ export class Game {
                     this.layerManager.unlockLayer(DepthLayer.DEEP_SEA);
                     this.ui.showNotification('Deep Sea layer unlocked! You can now fish down to 1000m.', 'success');
                 }
+            }
+
+            if (upgrade.type === UpgradeType.TANK_CAPACITY && upgrade.level >= 1) {
+                this.tankManager.increaseMaxTanks(upgrade.value);
+                this.updateTanksUI();
             }
         });
 
@@ -210,6 +240,209 @@ export class Game {
         if (deepSeaLayer) {
             deepSeaLayer.setPressureResistance(pressureResistance);
         }
+    }
+
+    /**
+     * Initialize the layer transition system
+     */
+    private initializeLayerTransitionSystem(): void {
+        // Initialize with default layer data
+        const currentLayer = this.layerManager.getActiveLayer();
+        const nextLayer = this.layerManager.getLayer(DepthLayer.DEEP_SEA);
+
+        if (!currentLayer || !nextLayer) {
+            return;
+        }
+
+        // Get current requirements status
+        const requirements = this.layerManager.getLayerRequirementStatus(
+            DepthLayer.DEEP_SEA,
+            {
+                inventory: this.inventory,
+                upgradeManager: this.upgradeManager,
+                fishingPower: this.fishingPower,
+                tankManager: this.tankManager
+            }
+        );
+
+        // Initialize UI
+        this.ui.initializeLayerTransition(
+            currentLayer.name,
+            nextLayer.name,
+            requirements,
+            () => this.checkLayerRequirements(DepthLayer.DEEP_SEA),
+            () => this.transitionToLayer(DepthLayer.DEEP_SEA)
+        );
+
+        // Schedule regular updates
+        setInterval(() => this.updateLayerRequirements(), 5000);
+    }
+
+    /**
+     * Update layer requirements display
+     */
+    private updateLayerRequirements(): void {
+        const requirements = this.layerManager.getLayerRequirementStatus(
+            DepthLayer.DEEP_SEA,
+            {
+                inventory: this.inventory,
+                upgradeManager: this.upgradeManager,
+                fishingPower: this.fishingPower,
+                tankManager: this.tankManager
+            }
+        );
+
+        this.ui.updateLayerRequirements(requirements);
+    }
+
+    /**
+     * Check if requirements are met for transitioning to a layer
+     */
+    private checkLayerRequirements(layerId: string): boolean {
+        return this.layerManager.checkLayerRequirements(
+            layerId,
+            {
+                inventory: this.inventory,
+                upgradeManager: this.upgradeManager,
+                fishingPower: this.fishingPower,
+                tankManager: this.tankManager
+            }
+        );
+    }
+
+    /**
+     * Transition to a new layer
+     */
+    private transitionToLayer(layerId: string): void {
+        const success = this.layerManager.transitionToLayer(layerId);
+
+        if (success) {
+            // Update max depth based on new layer
+            const layer = this.layerManager.getLayer(layerId);
+            if (layer) {
+                // Set max depth to the new layer's max
+                const layerMaxDepth = layer.maxDepth;
+                if (layerMaxDepth > this.maxDepth) {
+                    this.maxDepth = layerMaxDepth;
+                }
+
+                // Show notification
+                this.ui.showNotification(`You have descended to the ${layer.name} layer!`, 'success');
+
+                // Switch to fishing tab to show new layer
+                this.ui.switchToTab('fishing-tab');
+            }
+        }
+    }
+
+    /**
+     * Add a fish to a tank
+     */
+    private addFishToTank(fish: Fish, tankId: string): boolean {
+        // Remove from inventory first
+        const removed = this.inventory.removeFish(fish.id);
+
+        if (!removed) {
+            this.ui.showNotification('Could not remove fish from inventory', 'error');
+            return false;
+        }
+
+        // Add to tank
+        let success: boolean;
+
+        if (tankId) {
+            success = this.tankManager.addFishToSpecificTank(fish, tankId);
+        } else {
+            const newTankId = this.tankManager.addFishToTank(fish);
+            success = newTankId !== null;
+        }
+
+        if (!success) {
+            // Failed to add to tank, return to inventory
+            this.inventory.addFish(fish);
+            this.ui.showNotification('Could not add fish to tank', 'error');
+            return false;
+        }
+
+        // Set fish as being in a tank for abilities
+        this.abilityManager.setFishInTank(fish.id, true);
+
+        // Update UI
+        this.updateTanksUI();
+        this.updateUI();
+
+        this.ui.showNotification(`${fish.displayName} has been added to a tank`, 'success');
+
+        return true;
+    }
+
+    /**
+     * Remove a fish from a tank
+     */
+    private removeFishFromTank(tankId: string): Fish | null {
+        // Remove from tank
+        const fish = this.tankManager.removeFishFromTank(tankId);
+
+        if (!fish) {
+            return null;
+        }
+
+        // Check if inventory has space
+        if (this.inventory.isFull()) {
+            // No space, return fish to tank
+            this.tankManager.addFishToSpecificTank(fish, tankId);
+            this.ui.showNotification('Inventory is full! Sell some fish first.', 'error');
+            return null;
+        }
+
+        // Set fish as not being in a tank for abilities
+        this.abilityManager.setFishInTank(fish.id, false);
+
+        // Add to inventory
+        this.inventory.addFish(fish);
+
+        // Update UI
+        this.updateTanksUI();
+        this.updateUI();
+
+        this.ui.showNotification(`${fish.displayName} has been removed from tank`, 'info');
+
+        return fish;
+    }
+
+    /**
+     * Update tanks UI
+     */
+    private updateTanksUI(): void {
+        const tanks = this.tankManager.getAllTanks();
+        const abilities = new Map<string, FishAbility>();
+
+        // Collect abilities for fish in tanks
+        for (const tank of tanks) {
+            if (tank.fish) {
+                const ability = this.abilityManager.getAbilityForFish(tank.fish.id);
+                if (ability) {
+                    abilities.set(tank.fish.id, ability);
+                }
+            }
+        }
+
+        // Update tanks display
+        this.tankUI.updateTanks(tanks, abilities);
+
+        // Update available fish display
+        const allFish = this.inventory.getAllFish();
+        const unavailableFishIds = new Set<string>();
+
+        // Collect abilities for fish in inventory
+        for (const fish of allFish) {
+            const ability = this.abilityManager.getAbilityForFish(fish.id);
+            if (ability) {
+                abilities.set(fish.id, ability);
+            }
+        }
+
+        this.tankUI.updateAvailableFish(allFish, abilities, unavailableFishIds);
     }
 
     /**
@@ -610,6 +843,7 @@ export class Game {
             inventory: this.inventory.serialize(),
             economy: this.economy.serialize(),
             upgrades: this.upgradeManager.serialize(),
+            tankManager: this.tankManager.serialize(),
             layers: this.layerManager.serialize(),
             breeding: this.breedingManager.serialize(),
             abilities: this.abilityManager.serialize(),
@@ -709,6 +943,17 @@ export class Game {
             // Restore breeding
             if (saveData.breeding) {
                 this.breedingManager.deserialize(saveData.breeding);
+            }
+
+            if (saveData.tankManager) {
+                this.tankManager.deserialize(saveData.tankManager);
+
+                // Reactivate abilities for fish in tanks
+                for (const tank of this.tankManager.getAllTanks()) {
+                    if (tank.fish) {
+                        this.abilityManager.setFishInTank(tank.fish.id, true);
+                    }
+                }
             }
 
             // Restore abilities
