@@ -79,6 +79,7 @@ export class Achievement {
         return false;
     }
 
+
     /**
      * Check if all requirements are met
      * @param updatedStatName Name of the stat that was just updated

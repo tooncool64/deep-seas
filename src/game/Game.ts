@@ -698,6 +698,9 @@ export class Game {
                 }
             });
 
+            // Set UI manager reference
+            achievement.setUIManager(this.ui);
+
             // Add to stats tracker
             this.statsTracker.addAchievement(achievement);
         }

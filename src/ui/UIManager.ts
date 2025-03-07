@@ -548,16 +548,28 @@ export class UIManager {
             card.className = `achievement-card ${achievement.isUnlocked ? 'unlocked' : 'locked'}`;
             card.dataset.achievementId = achievement.id; // Add data attribute for potential updates
 
-            // Get requirement details
+            // Parse the requirement description
+            // We need to get both the stat name and required value
             const requirementDesc = achievement.getRequirementsDescription();
-            const [statName, requiredValue] = requirementDesc.split(': ');
+            const requirementParts = requirementDesc.split(': ');
+
+            if (requirementParts.length < 2) {
+                console.error(`Invalid requirement description format: ${requirementDesc}`);
+                continue;
+            }
+
+            const statName = requirementParts[0];
+            const requiredValue = parseInt(requirementParts[1]);
+
+            // Convert the displayable stat name to the actual stat key in our stats map
+            // This is important - we need to match the formatting used in StatsTracker
+            const statKey = statName.toLowerCase().replace(/\s/g, '');
 
             // Get current value for progress
-            const currentValue = stats.get(statName.toLowerCase().replace(/\s/g, '')) || 0;
-            const reqValue = parseInt(requiredValue);
+            const currentValue = stats.get(statKey) || 0;
 
             // Calculate progress percentage (capped at 100%)
-            const progressPercent = Math.min(100, Math.max(0, (currentValue / reqValue) * 100));
+            const progressPercent = Math.min(100, Math.max(0, (currentValue / requiredValue) * 100));
 
             // Create card content
             card.innerHTML = `
