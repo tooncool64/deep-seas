@@ -1,3 +1,5 @@
+import {UIManager} from "../../ui/UIManager";
+
 /**
  * Represents a game achievement
  */
@@ -16,6 +18,13 @@ export class Achievement {
 
     // Reward callback
     private onUnlock: (() => void) | null = null;
+
+    private uiManager: UIManager | null = null;
+
+    // Add method to set UI manager
+    setUIManager(uiManager: UIManager): void {
+        this.uiManager = uiManager;
+    }
 
     constructor(id: string, name: string, description: string) {
         this.id = id;
@@ -56,6 +65,11 @@ export class Achievement {
         // Check if requirement is met
         const requiredValue = this.requirements.get(statName)!;
         const isMet = currentValue >= requiredValue;
+
+        // Update UI if we have a UI manager reference
+        if (this.uiManager) {
+            this.uiManager.updateAchievementProgress(this.id, currentValue, requiredValue);
+        }
 
         // If all requirements are met, unlock achievement
         if (isMet && this.areAllRequirementsMet(statName, currentValue)) {

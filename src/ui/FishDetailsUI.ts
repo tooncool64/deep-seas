@@ -129,11 +129,11 @@ export class FishDetailsUI {
     private getAbilitySection(ability: FishAbility | null): string {
         if (!ability) {
             return `
-                <div class="fish-details-section">
-                    <h4>Ability</h4>
-                    <div class="no-ability-message">This fish has no special abilities.</div>
-                </div>
-            `;
+            <div class="fish-details-section">
+                <h4>Ability</h4>
+                <div class="no-ability-message">This fish has no special abilities.</div>
+            </div>
+        `;
         }
 
         let statusText = '';
@@ -141,11 +141,11 @@ export class FishDetailsUI {
         let buttonDisabled = false;
 
         if (ability.isPassive) {
-            statusText = 'Passive (Always Active)';
-            buttonText = 'Passive';
+            statusText = 'Place in tank to activate';
+            buttonText = 'Requires Tank';
             buttonDisabled = true;
         } else if (ability.isActiveNow()) {
-            statusText = 'Active';
+            statusText = 'Currently Active';
             buttonText = 'Active';
             buttonDisabled = true;
         } else if (ability.isOnCooldown()) {
@@ -155,20 +155,20 @@ export class FishDetailsUI {
         }
 
         return `
-            <div class="fish-details-section">
-                <h4>Ability</h4>
-                <div class="ability-info">
-                    <div class="ability-name">${ability.name}</div>
-                    <div class="ability-description">${ability.description}</div>
-                    <div class="ability-status">${statusText}</div>
-                </div>
-                <div class="ability-actions">
-                    <button class="activate-ability-button" data-ability-id="${ability.id}" ${buttonDisabled ? 'disabled' : ''}>
-                        ${buttonText}
-                    </button>
-                </div>
+        <div class="fish-details-section">
+            <h4>Ability</h4>
+            <div class="ability-info">
+                <div class="ability-name">${ability.name}</div>
+                <div class="ability-description">${ability.description}</div>
+                <div class="ability-status">${statusText}</div>
             </div>
-        `;
+            <div class="ability-actions">
+                <button class="activate-ability-button" data-ability-id="${ability.id}" ${buttonDisabled ? 'disabled' : ''}>
+                    ${buttonText}
+                </button>
+            </div>
+        </div>
+    `;
     }
 
     /**

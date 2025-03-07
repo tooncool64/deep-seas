@@ -97,6 +97,7 @@ export class Game {
 
         // Register stat change callbacks
         this.statsTracker.registerStatChangedCallback((statName, value) => {
+            // Update the stats display if on the stats tab
             if (this.ui.getCurrentTab() === 'stats-tab') {
                 this.updateStatsDisplay();
             }
@@ -108,6 +109,10 @@ export class Game {
                 this.updateStatsDisplay();
             }
         });
+
+        for (const achievement of this.statsTracker.getAllAchievements()) {
+            (achievement as any).setUIManager?.(this.ui);
+        }
 
         this.startBreedingTimerUpdates();
 
@@ -609,9 +614,14 @@ export class Game {
         // Show outcome in UI
         this.breedingUI.showBreedingOutcome(outcome);
 
-        // Update UI
+        // Update UI components
         this.updateBreedingUI();
         this.updateUI();
+
+        // If we're on the stats tab, update the stats display
+        if (this.ui.getCurrentTab() === 'stats-tab') {
+            this.updateStatsDisplay();
+        }
     }
 
     /**
@@ -857,7 +867,7 @@ export class Game {
         // Update stats
         this.ui.updateStats(this.statsTracker.getAllStats());
 
-        // Update achievements
+        // Update achievements with current stats to reflect progress
         this.ui.updateAchievements(
             this.statsTracker.getAllAchievements(),
             this.statsTracker.getAllStats()

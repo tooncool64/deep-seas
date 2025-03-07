@@ -328,7 +328,7 @@ export class UIManager {
      * Update stats display
      */
     updateStats(stats: Map<string, number>): void {
-        // Create or get stats container
+        // Get or create stats container
         let statsContainer = document.getElementById('stats-container');
 
         if (!statsContainer) {
@@ -347,21 +347,22 @@ export class UIManager {
         const keyStats = [
             { name: 'Fish Caught', value: stats.get('totalFishCaught') || 0 },
             { name: 'Max Depth', value: `${stats.get('maxDepthReached') || 0}m` },
+            { name: 'Unique Species', value: stats.get('uniqueSpeciesCaught') || 0 },
             { name: 'Breeding Success', value: stats.get('successfulBreeds') || 0 },
             { name: 'Play Time', value: this.formatTime(stats.get('totalPlayTime') || 0) }
         ];
 
         statsContainer.innerHTML = `
-            <h3>Statistics</h3>
-            <div class="stats-grid">
-                ${keyStats.map(stat => `
-                    <div class="stat-item">
-                        <div class="stat-name">${stat.name}</div>
-                        <div class="stat-value">${stat.value}</div>
-                    </div>
-                `).join('')}
-            </div>
-        `;
+        <h3>Statistics</h3>
+        <div class="stats-grid">
+            ${keyStats.map(stat => `
+                <div class="stat-item">
+                    <div class="stat-name">${stat.name}</div>
+                    <div class="stat-value">${stat.value}</div>
+                </div>
+            `).join('')}
+        </div>
+    `;
     }
 
     /**
@@ -545,6 +546,7 @@ export class UIManager {
             // Create card element
             const card = document.createElement('div');
             card.className = `achievement-card ${achievement.isUnlocked ? 'unlocked' : 'locked'}`;
+            card.dataset.achievementId = achievement.id; // Add data attribute for potential updates
 
             // Get requirement details
             const requirementDesc = achievement.getRequirementsDescription();
@@ -554,31 +556,79 @@ export class UIManager {
             const currentValue = stats.get(statName.toLowerCase().replace(/\s/g, '')) || 0;
             const reqValue = parseInt(requiredValue);
 
-            // Calculate progress percentage
-            const progressPercent = Math.min(100, (currentValue / reqValue) * 100);
+            // Calculate progress percentage (capped at 100%)
+            const progressPercent = Math.min(100, Math.max(0, (currentValue / reqValue) * 100));
 
             // Create card content
             card.innerHTML = `
-            <div class="achievement-header">
-                <div class="achievement-title">${achievement.name}</div>
-                <div class="achievement-status ${achievement.isUnlocked ? 'unlocked' : 'locked'}">
-                    ${achievement.isUnlocked ? 'Achieved' : 'Locked'}
-                </div>
+        <div class="achievement-header">
+            <div class="achievement-title">${achievement.name}</div>
+            <div class="achievement-status ${achievement.isUnlocked ? 'unlocked' : 'locked'}">
+                ${achievement.isUnlocked ? 'Achieved' : 'Locked'}
             </div>
-            <div class="achievement-description">${achievement.description}</div>
-            <div class="achievement-goal">
-                <span>${statName}</span>
-                <div class="achievement-progress">
-                    <div class="achievement-progress-fill" style="width: ${progressPercent}%"></div>
-                </div>
-                <span>${currentValue}/${requiredValue}</span>
+        </div>
+        <div class="achievement-description">${achievement.description}</div>
+        <div class="achievement-goal">
+            <span>${statName}</span>
+            <div class="achievement-progress">
+                <div class="achievement-progress-fill" style="width: ${progressPercent}%"></div>
             </div>
-            ${achievement.isUnlocked ?
+            <span>${currentValue}/${requiredValue}</span>
+        </div>
+        ${achievement.isUnlocked ?
                 `<div class="achievement-reward">Unlocked: ${achievement.unlockedAt ? achievement.unlockedAt.toLocaleDateString() : 'N/A'}</div>` : ''}
-        `;
+    `;
 
             // Add to container
             achievementsContainer.appendChild(card);
+        }
+    }
+
+    /**
+     * Update specific achievement progress without rebuilding entire UI
+     * @param achievementId ID of the achievement to update
+     * @param currentValue Current stat value
+     * @param requiredValue Required stat value for completion
+     */
+    updateAchievementProgress(achievementId: string, currentValue: number, requiredValue: number): void {
+        // Find the achievement card with this ID
+        const achievementCard = document.querySelector(`.achievement-card[data-achievement-id="${achievementId}"]`);
+        if (!achievementCard) return;
+
+        // Calculate progress percentage (capped at 100%)
+        const progressPercent = Math.min(100, Math.max(0, (currentValue / requiredValue) * 100));
+
+        // Update progress bar
+        const progressFill = achievementCard.querySelector('.achievement-progress-fill') as HTMLElement;
+        if (progressFill) {
+            progressFill.style.width = `${progressPercent}%`;
+        }
+
+        // Update text display
+        const valueText = achievementCard.querySelector('.achievement-goal > span:last-child');
+        if (valueText) {
+            valueText.textContent = `${currentValue}/${requiredValue}`;
+        }
+
+        // Update status if achievement is now complete
+        if (currentValue >= requiredValue) {
+            achievementCard.classList.add('unlocked');
+            achievementCard.classList.remove('locked');
+
+            const statusIndicator = achievementCard.querySelector('.achievement-status');
+            if (statusIndicator) {
+                statusIndicator.textContent = 'Achieved';
+                statusIndicator.classList.add('unlocked');
+                statusIndicator.classList.remove('locked');
+            }
+
+            // Add unlocked date if not present
+            if (!achievementCard.querySelector('.achievement-reward')) {
+                const rewardDiv = document.createElement('div');
+                rewardDiv.className = 'achievement-reward';
+                rewardDiv.textContent = `Unlocked: ${new Date().toLocaleDateString()}`;
+                achievementCard.appendChild(rewardDiv);
+            }
         }
     }
 

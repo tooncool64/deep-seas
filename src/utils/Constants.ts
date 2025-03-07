@@ -271,12 +271,12 @@ export const INITIAL_UPGRADES = [
         maxLevel: 5
     },
     {
-        id: 'small_tank',
-        name: 'Small Fish Tank',
-        description: 'Increases tank capacity by 5',
-        type: UpgradeType.TANK_CAPACITY,
-        cost: 60,
-        value: 5,
+        id: 'basic_breeding_tank',
+        name: 'Basic Breeding Tank',
+        description: 'Adds a tank for breeding fish',
+        type: UpgradeType.BREEDING_TANKS,
+        cost: 200,
+        value: 1,  // Changed from larger value to 1 tank per upgrade level
         maxLevel: 5
     },
     {

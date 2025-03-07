@@ -211,6 +211,18 @@ export class StatsTracker {
         }
     }
 
+    private checkAchievementsForStat(statName: string, value: number): void {
+        let achievementUpdated = false;
+
+        for (const achievement of this.achievements.values()) {
+            if (!achievement.isUnlocked && achievement.checkRequirement(statName, value)) {
+                achievement.unlock();
+                this.notifyAchievementUnlocked(achievement);
+                achievementUpdated = true;
+            }
+        }
+    }
+
     /**
      * Register callback for stat changed event
      */
@@ -229,10 +241,15 @@ export class StatsTracker {
      * Notify listeners that a stat has changed
      */
     private notifyStatChanged(statName: string, value: number): void {
+        // Notify registered callbacks
         for (const callback of this.onStatChanged) {
             callback(statName, value);
         }
+
+        // Check if any achievements should be unlocked based on this stat
+        this.checkAchievementsForStat(statName, value);
     }
+
 
     /**
      * Notify listeners that an achievement was unlocked

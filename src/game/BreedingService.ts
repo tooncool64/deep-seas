@@ -108,7 +108,7 @@ export class BreedingService extends GameService {
             outcome.hasMutation
         );
 
-        // Notify listeners
+        // Notify listeners about the breeding outcome
         this.notifyBreedingOutcome(outcome);
     }
 
